@@ -1,0 +1,91 @@
+# [generated] Bracketed sections updated by Yeoman generator
+# generator-canonical-webteam@3.4.3
+
+# [os] OS & editor files
+Desktop.ini
+Thumbs.db
+._*
+*.DS_Store
+*~
+\#*\#
+.AppleDouble
+.LSOverride
+.spelling
+.vscode
+.idea
+*.swp
+*.swo
+*.swn
+
+# [dependencies] Python & Node dependencies
+/.venv/
+/node_modules/
+*.egg
+*.egg-info/
+dist
+build
+
+# [dependencies] Yarn vs npm
+# Normally lockfiles would be committed, but we use yarn instead of NPM for locking dependencies
+package-lock.json
+
+# [build] Built files
+/build/
+/parts/
+/prime/
+/stage/
+*.egg-info
+.snapcraft/
+*.snap
+_site/
+*.*.map
+
+# [env] Local environment settings
+.docker-project
+.*hash
+.venv
+.env.local
+
+# [tools] IDE and other tool files
+.bundle/
+.cache
+.coverage
+.jekyll-metadata
+.pytest_cache
+.python-version
+.rubygems
+.ruby-version
+*.orig
+*.rej
+*.sqlite
+*.sqlite3
+.DS_Store
+node_modules/
+.npm
+.tmp
+.yarn-integrity
+
+# [IDE] VS Code
+.vscode/
+.history/
+
+# [IDE] PyCharm
+.idea/
+
+# [IDE] vim
+.vim/
+*.swp
+*.swo
+
+# Additional Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.tox/
+*.cover
+.hypothesis/
+
+# dotrun
+.dotrun.json
+.docker-project

@@ -1,0 +1,21 @@
+version: "3.3"
+services:
+  postgres:
+    container_name: products_db
+    ports:
+      - "5433:5432"
+    environment:
+      - POSTGRES_PASSWORD=pw
+      - POSTGRES_DB=products_db
+    image: postgres
+
+  app:
+    container_name: products_api
+    build: .
+    ports:
+      - "8040:8040"
+    environment:
+      - FLASK_DEBUG=false
+      - DATABASE_URL=postgresql://postgres:pw@postgres:5432/products_db
+    depends_on:
+      - postgres
