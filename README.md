@@ -31,6 +31,15 @@ After you close the server with `<ctrl>+c` you should run `docker-compose down` 
 dotrun install
 ```
 
+If you need to run migrations locally, use a host-local virtualenv:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip setuptools==69.5.1
+pip install -r requirements.txt
+```
+
 ## Run the API
 
 ```bash
@@ -39,6 +48,27 @@ dotrun serve
 ```
 
 The API will start at `http://0.0.0.0:8040/` with a health endpoint at `/v1/health`.
+
+## Database migrations (local)
+
+Run migrations from the host virtualenv (not through `dotrun exec`):
+
+```bash
+source .venv/bin/activate
+set -a && source .env && set +a
+export FLASK_APP=webapp.app
+docker-compose up -d postgres
+flask db upgrade
+```
+
+Useful checks:
+
+```bash
+flask db current
+flask db heads
+```
+
+Note: avoid `dotrun exec flask db ...` for local migrations, as that runtime may use a different network/path context than the host `.env` values.
 
 ## Testing
 

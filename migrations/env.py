@@ -7,6 +7,7 @@ from alembic import context
 
 # Import Flask app and db for metadata
 from webapp.app import app, db
+from webapp import models  # noqa: F401
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -14,7 +15,13 @@ config = context.config
 
 # Interpret the config file for Python logging.
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    try:
+        fileConfig(config.config_file_name)
+    except (KeyError, FileNotFoundError):
+        # fileConfig may raise KeyError if the logging config is incomplete
+        # (e.g. missing [formatters] section in certain environments).
+        # Logging setup is non-critical so we skip it rather than block migrations.
+        pass
 
 # Set SQLAlchemy URL from Flask config or environment
 db_url = os.environ.get("DATABASE_URL", app.config.get("SQLALCHEMY_DATABASE_URI"))
