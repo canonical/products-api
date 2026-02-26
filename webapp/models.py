@@ -1,7 +1,7 @@
 import re
 
-from webapp.app import db
 from webapp.constants import ARTIFACT_TYPES
+from webapp.database import db
 
 
 ARTIFACT_TYPES_SQL = ", ".join(f"'{artifact}'" for artifact in ARTIFACT_TYPES)
