@@ -46,6 +46,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Configure CI database env
+        run: |
+          sed -i '/^DATABASE_URL=/d' .env
+          sed -i '/^TEST_DATABASE_URL=/d' .env
+          echo "DATABASE_URL=postgresql://postgres:pw@localhost:5432/products_db" >> .env
+          echo "TEST_DATABASE_URL=postgresql://postgres:pw@localhost:5432/products_db" >> .env
+
       - name: Install dotrun
         run: sudo pip3 install dotrun requests==2.31.0
 
