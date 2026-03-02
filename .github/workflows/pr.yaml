@@ -106,4 +106,4 @@ jobs:
       - name: Run test-python
         env:
           TEST_DATABASE_URL: postgresql://postgres:pw@localhost:5432/products_db
-        run: dotrun exec python -m unittest tests.test_routes
+        run: dotrun exec -- python -m unittest tests.test_routes
