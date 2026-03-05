@@ -2,10 +2,22 @@
 
 set -e
 
-RUN_COMMAND="python -m talisker.gunicorn.gevent app:application --bind $1 --worker-class gevent --name talisker-$(hostname)"
-
-if [ "${FLASK_DEBUG}" = "true" ] || [ "${FLASK_DEBUG}" = 1 ]; then
-    RUN_COMMAND="${RUN_COMMAND} --reload --log-level debug --timeout 9999"
+# Extra arguments for debug mode
+if [ "${FLASK_DEBUG}" = true ] || [ "${FLASK_DEBUG}" = 1 ]; then
+    DEBUG_ARGS="--reload --log-level debug --timeout 5"
+else
+    DEBUG_ARGS=""
 fi
 
-${RUN_COMMAND}
+# Provision database
+# ===
+FLASK_APP=webapp.app flask db upgrade
+
+# Start server
+# ===
+if [ -z "${GUNICORN_TIMEOUT}" ]; then
+    WORKER_TIMEOUT="30"
+else
+    WORKER_TIMEOUT="${GUNICORN_TIMEOUT}"
+fi
+talisker.gunicorn app:application --bind $1 --worker-class gevent --workers 4 --name talisker-$(hostname) ${DEBUG_ARGS} --timeout $WORKER_TIMEOUT
