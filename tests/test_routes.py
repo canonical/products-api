@@ -1,34 +1,10 @@
 import unittest
 
 from tests import BaseTestCase
-from tests.fixtures.models import make_deployment, make_product, make_version
+from tests.helpers import _add_product_with_version, _extract_slugs
 
 
 class TestRoutes(BaseTestCase):
-    def _add_product_with_version(self, product_slug, lifecycle_overrides):
-        product = make_product(
-            slug=product_slug,
-            name=f"Product {product_slug}",
-        )
-        deployment = make_deployment(
-            product,
-            slug=f"{product_slug}-deployment",
-            name=f"Deployment {product_slug}",
-        )
-        version = make_version(
-            product,
-            deployment,
-            release=f"{product_slug}-1.0.0",
-            **lifecycle_overrides,
-        )
-        self.db.session.add(product)
-        self.db.session.add(deployment)
-        self.db.session.add(version)
-        self.db.session.commit()
-
-    def _extract_slugs(self, payload):
-        return [product["slug"] for product in payload["products"]]
-
     def test_get_products_returns_200(self):
         """GET /products returns 200."""
         response = self.client.get("/products")
@@ -56,7 +32,8 @@ class TestRoutes(BaseTestCase):
 
     def test_get_products_excludes_expired_by_default(self):
         """Products where all versions are expired are excluded when include_expired is omitted."""
-        self._add_product_with_version(
+        _add_product_with_version(
+            self.db,
             "expired-default",
             {
                 "supported": {"date": "2000-01-01"},
@@ -67,14 +44,15 @@ class TestRoutes(BaseTestCase):
 
         response = self.client.get("/products")
         payload = response.get_json()
-        slugs = self._extract_slugs(payload)
+        slugs = _extract_slugs(payload)
 
         self.assertNotIn("expired-default", slugs)
         self.assertIn("test-product", slugs)
 
     def test_get_products_include_expired_true(self):
         """Expired products are included when include_expired=true."""
-        self._add_product_with_version(
+        _add_product_with_version(
+            self.db,
             "expired-true",
             {
                 "supported": {"date": "2000-01-01"},
@@ -85,13 +63,14 @@ class TestRoutes(BaseTestCase):
 
         response = self.client.get("/products?include_expired=true")
         payload = response.get_json()
-        slugs = self._extract_slugs(payload)
+        slugs = _extract_slugs(payload)
 
         self.assertIn("expired-true", slugs)
 
     def test_get_products_notes_with_until_not_filtered(self):
         """A version with notes containing 'until' is treated as active and not filtered out."""
-        self._add_product_with_version(
+        _add_product_with_version(
+            self.db,
             "notes-until",
             {
                 "supported": {"notes": "Supported until further notice"},
@@ -102,13 +81,14 @@ class TestRoutes(BaseTestCase):
 
         response = self.client.get("/products")
         payload = response.get_json()
-        slugs = self._extract_slugs(payload)
+        slugs = _extract_slugs(payload)
 
         self.assertIn("notes-until", slugs)
 
     def test_get_products_notes_without_until_filtered(self):
         """A version with notes not containing 'until' and no date is treated as expired."""
-        self._add_product_with_version(
+        _add_product_with_version(
+            self.db,
             "notes-no-until",
             {
                 "supported": {"notes": "deprecated"},
@@ -119,7 +99,7 @@ class TestRoutes(BaseTestCase):
 
         response = self.client.get("/products")
         payload = response.get_json()
-        slugs = self._extract_slugs(payload)
+        slugs = _extract_slugs(payload)
 
         self.assertNotIn("notes-no-until", slugs)
 

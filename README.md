@@ -76,6 +76,15 @@ Note: avoid `dotrun exec flask db ...` for local migrations, as that runtime may
 dotrun test
 ```
 
+On Linux, `TEST_DATABASE_URL` in `.env` uses `localhost`.
+
+On macOS and Windows, Docker networking can behave differently. If tests cannot
+connect to Postgres, create a local override file `.env.local` and set:
+
+```bash
+TEST_DATABASE_URL=postgresql://postgres:pw@host.docker.internal:5433/test_products_db
+```
+
 ## Linting and formatting
 
 ```bash

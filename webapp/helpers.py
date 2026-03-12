@@ -1,10 +1,10 @@
 from datetime import date
-
+from typing import Any
 
 ACTIVE_KEYWORDS = ["until"]
 
 
-def _field_is_active(value):
+def _field_is_active(value: Any) -> bool:
     """
     Return True if a DateOrNote field value indicates active support.
 
@@ -35,7 +35,7 @@ def _field_is_active(value):
     return False
 
 
-def is_version_active(version) -> bool:
+def is_version_active(version: Any) -> bool:
     """Return True if any lifecycle field indicates this version is active."""
 
     lifecycle_fields = [
@@ -49,7 +49,7 @@ def is_version_active(version) -> bool:
     )
 
 
-def is_product_active(product):
+def is_product_active(product: Any) -> bool:
     """Return True if the product has at least one active version."""
 
     versions = [
