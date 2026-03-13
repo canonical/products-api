@@ -51,7 +51,10 @@ def is_version_active(version: Any) -> bool:
 
 
 def filter_product_versions(product: Any) -> Any:
-    """Return a product-like object containing only active deployments and versions."""
+    """
+    Return a product-like object containing only active
+    deployments and versions.
+    """
 
     filtered_deployments = []
 

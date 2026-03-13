@@ -18,9 +18,13 @@ def get_products(include_expired):
 
 @use_kwargs(GetProductsQuerySchema, location="query")
 def get_product(product_slug, include_expired):
-    product = Product.query.options(
-        joinedload(Product.deployments).joinedload(Deployment.versions)
-    ).filter_by(slug=product_slug).one_or_none()
+    product = (
+        Product.query.options(
+            joinedload(Product.deployments).joinedload(Deployment.versions)
+        )
+        .filter_by(slug=product_slug)
+        .one_or_none()
+    )
 
     if product is None:
         return {
