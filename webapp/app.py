@@ -1,8 +1,9 @@
 from canonicalwebteam.flask_base.app import FlaskBase
 from canonicalwebteam.flask_base.env import get_flask_env
-from flask_sqlalchemy import SQLAlchemy
-from flask_migrate import Migrate
+from flask import jsonify
 from flask_apispec import FlaskApiSpec
+from webapp.database import db, migrate
+import webapp.views as views
 
 app = FlaskBase(__name__, "products-api")
 
@@ -16,18 +17,36 @@ app.config.update(
         "APISPEC_TITLE": "Products API",
         "APISPEC_VERSION": "v1",
         "APISPEC_OPENAPI_VERSION": "3.0.2",
-        "APISPEC_URL_PREFIX": "/v1",
         "APISPEC_SWAGGER_URL": "/swagger",
         "APISPEC_SWAGGER_UI_URL": "/swagger-ui",
     }
 )
 
-db = SQLAlchemy(app)
-migrate = Migrate(app, db)
+db.init_app(app)
+migrate.init_app(app, db)
 docs = FlaskApiSpec(app)
 
+app.add_url_rule("/products", view_func=views.get_products, methods=["GET"])
 
-@app.route("/v1/health")
+
+@app.errorhandler(422)
+def handle_validation_error(error):
+    messages = error.data.get("messages", {})
+
+    return (
+        jsonify(
+            {
+                "error": {
+                    "message": "Invalid request.",
+                    "details": messages.get("query", messages),
+                }
+            }
+        ),
+        400,
+    )
+
+
+@app.route("/health")
 def health():
     return {"status": "ok"}
 

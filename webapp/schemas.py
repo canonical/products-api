@@ -7,7 +7,7 @@ from webapp.constants import ARTIFACT_TYPES, ARCHITECTURES
 class DateOrNoteSchema(Schema):
     """DateOrNote support lifecycle field."""
 
-    date = fields.Date(required=False, allow_none=True)
+    date = fields.String(required=False, allow_none=True)
     notes = fields.String(required=False, allow_none=True)
 
     @validates_schema
@@ -77,3 +77,20 @@ class VersionSchema(Schema):
         required=False,
         allow_none=True,
     )
+
+
+class GetProductsQuerySchema(Schema):
+    include_expired = fields.Boolean(load_default=False)
+
+
+class ErrorSchema(Schema):
+    """For errors with no field-level detail (e.g. 401, 403)."""
+
+    message = fields.String(required=True)
+
+
+class ErrorDetailSchema(Schema):
+    """For errors with field-level context (400, 404, 409)."""
+
+    message = fields.String(required=True)
+    details = fields.Dict(required=True)

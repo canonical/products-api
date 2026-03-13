@@ -5,6 +5,7 @@
     "clean": "rm -rf node_modules yarn-error.log css static/css *.log *.sqlite _site/ build/ .jekyll-metadata .bundle",
     "format-python": "black --line-length 79 webapp",
     "lint-python": "flake8 webapp && black --check --line-length 79 webapp",
+    "test-python": "python -m unittest tests.test_routes",
     "serve": "./entrypoint 0.0.0.0:${PORT}",
     "start": "yarn run serve",
     "test": "yarn run lint-python"
