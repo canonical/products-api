@@ -59,27 +59,33 @@ def filter_product_versions(product: Any) -> Any:
     filtered_deployments = []
 
     for deployment in product.deployments:
-        active_versions = [
-            version
-            for version in deployment.versions
-            if is_version_active(version)
-        ]
+        filtered_deployment = filter_deployment_versions(deployment)
 
-        if active_versions:
-            filtered_deployments.append(
-                SimpleNamespace(
-                    slug=deployment.slug,
-                    parent_product=deployment.parent_product,
-                    name=deployment.name,
-                    artifact_type=deployment.artifact_type,
-                    versions=active_versions,
-                )
-            )
+        if filtered_deployment.versions:
+            filtered_deployments.append(filtered_deployment)
 
     return SimpleNamespace(
         slug=product.slug,
         name=product.name,
         deployments=filtered_deployments,
+    )
+
+
+def filter_deployment_versions(deployment: Any) -> Any:
+    """Return a deployment-like object containing only active versions."""
+
+    active_versions = [
+        version
+        for version in deployment.versions
+        if is_version_active(version)
+    ]
+
+    return SimpleNamespace(
+        slug=deployment.slug,
+        parent_product=deployment.parent_product,
+        name=deployment.name,
+        artifact_type=deployment.artifact_type,
+        versions=active_versions,
     )
 
 
