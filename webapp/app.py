@@ -27,6 +27,11 @@ migrate.init_app(app, db)
 docs = FlaskApiSpec(app)
 
 app.add_url_rule("/products", view_func=views.get_products, methods=["GET"])
+app.add_url_rule(
+    "/products/<string:product_slug>",
+    view_func=views.get_product,
+    methods=["GET"],
+)
 
 
 @app.errorhandler(422)

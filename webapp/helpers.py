@@ -1,4 +1,5 @@
 from datetime import date
+from types import SimpleNamespace
 from typing import Any
 
 ACTIVE_KEYWORDS = ["until"]
@@ -46,6 +47,39 @@ def is_version_active(version: Any) -> bool:
 
     return any(
         _field_is_active(field_value) for field_value in lifecycle_fields
+    )
+
+
+def filter_product_versions(product: Any) -> Any:
+    """
+    Return a product-like object containing only active
+    deployments and versions.
+    """
+
+    filtered_deployments = []
+
+    for deployment in product.deployments:
+        active_versions = [
+            version
+            for version in deployment.versions
+            if is_version_active(version)
+        ]
+
+        if active_versions:
+            filtered_deployments.append(
+                SimpleNamespace(
+                    slug=deployment.slug,
+                    parent_product=deployment.parent_product,
+                    name=deployment.name,
+                    artifact_type=deployment.artifact_type,
+                    versions=active_versions,
+                )
+            )
+
+    return SimpleNamespace(
+        slug=product.slug,
+        name=product.name,
+        deployments=filtered_deployments,
     )
 
 
