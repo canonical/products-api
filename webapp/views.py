@@ -1,9 +1,17 @@
 from flask_apispec import use_kwargs
 from sqlalchemy.orm import joinedload
 
-from webapp.helpers import filter_product_versions, is_product_active
+from webapp.helpers import (
+    filter_deployment_versions,
+    filter_product_versions,
+    is_product_active,
+)
 from webapp.models import Deployment, Product
-from webapp.schemas import GetProductsQuerySchema, ProductSchema
+from webapp.schemas import (
+    DeploymentSchema,
+    GetProductsQuerySchema,
+    ProductSchema,
+)
 
 
 @use_kwargs(GetProductsQuerySchema, location="query")
@@ -38,3 +46,31 @@ def get_product(product_slug, include_expired):
         product = filter_product_versions(product)
 
     return ProductSchema().dump(product), 200
+
+
+@use_kwargs(GetProductsQuerySchema, location="query")
+def get_product_deployment(product_slug, deployment_slug, include_expired):
+    deployment = (
+        Deployment.query.options(joinedload(Deployment.versions))
+        .filter_by(
+            parent_product=product_slug,
+            slug=deployment_slug,
+        )
+        .one_or_none()
+    )
+
+    if deployment is None:
+        return {
+            "error": {
+                "message": "Deployment not found.",
+                "details": {
+                    "product_slug": product_slug,
+                    "deployment_slug": deployment_slug,
+                },
+            }
+        }, 404
+
+    if not include_expired:
+        deployment = filter_deployment_versions(deployment)
+
+    return DeploymentSchema().dump(deployment), 200
