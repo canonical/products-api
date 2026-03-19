@@ -2,6 +2,10 @@
 
 [List of work items including drive-bys]
 
+## Notes / Rationale 
+
+[Add any notes for the reviewer]
+
 ## QA
 
 - Check out this feature branch
@@ -9,6 +13,7 @@
 - View the site locally in your web browser at: `http://0.0.0.0:8040/`
 - Run through the following [QA steps](link to QA steps)
 
-## Notes
+## Issue / Card
 
-[Add any notes for the reviewer]
+[Link to issue or card]
+

@@ -30,8 +30,8 @@ class CompatibleLTSSchema(Schema):
 class ProductSchema(Schema):
     """Schema for Product model."""
 
-    slug = fields.String(dump_only=True)
     name = fields.String(required=True)
+    slug = fields.String(dump_only=True)
     deployments = fields.List(
         fields.Nested(lambda: DeploymentSchema()),
         required=True,

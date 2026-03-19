@@ -6,6 +6,7 @@ from webapp.database import db, migrate
 import webapp.views as views
 
 app = FlaskBase(__name__, "products-api")
+app.json.sort_keys = False
 
 # Database Configuration
 app.config["SQLALCHEMY_DATABASE_URI"] = get_flask_env("DATABASE_URL")

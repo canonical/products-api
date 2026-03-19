@@ -49,6 +49,15 @@ dotrun serve
 
 The API will start at `http://0.0.0.0:8040/` with a health endpoint at `/v1/health`.
 
+On Linux, `DATABASE_URL` in `.env` uses `localhost`.
+
+On macOS and Windows, Docker networking can behave differently. If the API
+cannot connect to Postgres, create a local override file `.env.local` and set:
+
+```bash
+DATABASE_URL=postgresql://postgres:pw@host.docker.internal:5433/products_db
+```
+
 ## Database migrations (local)
 
 Run migrations from the host virtualenv (not through `dotrun exec`):
