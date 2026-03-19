@@ -83,6 +83,40 @@ class GetProductsQuerySchema(Schema):
     include_expired = fields.Boolean(load_default=False)
 
 
+class CreateDeploymentBodySchema(Schema):
+    """Schema for deployment input in POST /products."""
+
+    slug = fields.String(required=True)
+    name = fields.String(required=True)
+    artifact_type = fields.String(
+        required=True, validate=OneOf(ARTIFACT_TYPES)
+    )
+
+
+class CreateProductBodySchema(Schema):
+    """Schema for POST /products request body."""
+
+    slug = fields.String(required=True)
+    name = fields.String(required=True)
+    deployments = fields.List(
+        fields.Nested(CreateDeploymentBodySchema),
+        required=True,
+        allow_none=False,
+        validate=Length(min=1),
+    )
+
+    @validates_schema
+    def validate_unique_deployment_slugs(self, data, **kwargs):
+        deployments = data.get("deployments") or []
+        slugs = [deployment.get("slug") for deployment in deployments]
+
+        if len(slugs) != len(set(slugs)):
+            raise ValidationError(
+                "Deployment slugs must be unique within a product.",
+                field_name="deployments",
+            )
+
+
 class ErrorSchema(Schema):
     """For errors with no field-level detail (e.g. 401, 403)."""
 
