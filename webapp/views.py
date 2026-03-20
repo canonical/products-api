@@ -6,6 +6,7 @@ from webapp.helpers import (
     filter_deployment_versions,
     filter_product_versions,
     is_product_active,
+    slugify,
 )
 from webapp.models import Deployment, Product
 from webapp.schemas import (
@@ -80,6 +81,9 @@ def get_product_deployment(product_slug, deployment_slug, include_expired):
 
 @use_kwargs(CreateProductBodySchema, location="json")
 def create_product(slug, name, deployments):
+    if slug is None:
+        slug = slugify(name)
+
     existing_product = Product.query.filter_by(slug=slug).one_or_none()
     if existing_product:
         return {
@@ -93,8 +97,12 @@ def create_product(slug, name, deployments):
     db.session.add(product)
 
     for dep_data in deployments:
+        dep_slug = dep_data["slug"]
+        if dep_slug is None:
+            dep_slug = slugify(dep_data["name"])
+        
         deployment = Deployment(
-            slug=dep_data["slug"],
+            slug=dep_slug,
             parent_product=slug,
             name=dep_data["name"],
             artifact_type=dep_data["artifact_type"],
