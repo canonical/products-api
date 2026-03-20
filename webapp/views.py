@@ -100,7 +100,7 @@ def create_product(slug, name, deployments):
         dep_slug = dep_data["slug"]
         if dep_slug is None:
             dep_slug = slugify(dep_data["name"])
-        
+
         deployment = Deployment(
             slug=dep_slug,
             parent_product=slug,

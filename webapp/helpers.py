@@ -8,7 +8,7 @@ ACTIVE_KEYWORDS = ["until"]
 
 def slugify(name: str) -> str:
     """Generate a slug from a name.
-    
+
     Lowercases the input, strips leading/trailing whitespace,
     replaces any sequence of non-alphanumeric characters with a hyphen,
     and strips leading/trailing hyphens from the result.

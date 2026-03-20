@@ -1,6 +1,13 @@
 import re
 
-from marshmallow import Schema, ValidationError, fields, post_load, validates, validates_schema
+from marshmallow import (
+    Schema,
+    ValidationError,
+    fields,
+    post_load,
+    validates,
+    validates_schema,
+)
 from marshmallow.validate import OneOf, Length
 
 from webapp.constants import ARTIFACT_TYPES, ARCHITECTURES
@@ -10,7 +17,7 @@ _SLUG_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 
 def _validate_slug_format(value: str) -> None:
     """Validate that a (non-empty) slug matches the allowed pattern.
-    
+
     Raises ValidationError if the slug does not match.
     """
     if not _SLUG_RE.match(value):
