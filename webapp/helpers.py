@@ -1,8 +1,21 @@
+import re
 from datetime import date
 from types import SimpleNamespace
 from typing import Any
 
 ACTIVE_KEYWORDS = ["until"]
+
+
+def slugify(name: str) -> str:
+    """Generate a slug from a name.
+
+    Lowercases the input, strips leading/trailing whitespace,
+    replaces any sequence of non-alphanumeric characters with a hyphen,
+    and strips leading/trailing hyphens from the result.
+    """
+    slug = name.lower().strip()
+    slug = re.sub(r"[^a-z0-9]+", "-", slug)
+    return slug.strip("-")
 
 
 def _field_is_active(value: Any) -> bool:
