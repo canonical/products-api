@@ -80,9 +80,8 @@ def get_product_deployment(product_slug, deployment_slug, include_expired):
 
 
 @use_kwargs(CreateProductBodySchema, location="json")
-def create_product(slug, name, deployments):
-    if slug is None:
-        slug = slugify(name)
+def create_product(name, deployments):
+    slug = slugify(name)
 
     existing_product = Product.query.filter_by(slug=slug).one_or_none()
     if existing_product:
@@ -97,12 +96,8 @@ def create_product(slug, name, deployments):
     db.session.add(product)
 
     for dep_data in deployments:
-        dep_slug = dep_data["slug"]
-        if dep_slug is None:
-            dep_slug = slugify(dep_data["name"])
-
         deployment = Deployment(
-            slug=dep_slug,
+            slug=slugify(dep_data["name"]),
             parent_product=slug,
             name=dep_data["name"],
             artifact_type=dep_data["artifact_type"],

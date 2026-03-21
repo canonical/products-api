@@ -1,30 +1,13 @@
-import re
-
 from marshmallow import (
     Schema,
     ValidationError,
     fields,
     post_load,
-    validates,
     validates_schema,
 )
 from marshmallow.validate import OneOf, Length
 
 from webapp.constants import ARTIFACT_TYPES, ARCHITECTURES
-
-_SLUG_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
-
-
-def _validate_slug_format(value: str) -> None:
-    """Validate that a (non-empty) slug matches the allowed pattern.
-
-    Raises ValidationError if the slug does not match.
-    """
-    if not _SLUG_RE.match(value):
-        raise ValidationError(
-            "Slug may only contain lowercase letters, digits, and "
-            "hyphens, and may not start or end with a hyphen."
-        )
 
 
 class DateOrNoteSchema(Schema):
@@ -106,37 +89,18 @@ class GetProductsQuerySchema(Schema):
     include_expired = fields.Boolean(load_default=False)
 
 
-class SlugValidationMixin:
-    @validates("slug")
-    def validate_slug(self, value):
-        if value is None:
-            return
-        stripped = value.strip()
-        if stripped:
-            _validate_slug_format(stripped)
-
-
-class CreateDeploymentBodySchema(SlugValidationMixin, Schema):
+class CreateDeploymentBodySchema(Schema):
     """Schema for deployment input in POST /products."""
 
-    slug = fields.String(required=False, load_default=None)
     name = fields.String(required=True)
     artifact_type = fields.String(
         required=True, validate=OneOf(ARTIFACT_TYPES)
     )
 
-    @post_load
-    def normalize_slug(self, data, **kwargs):
-        if "slug" in data and data["slug"] is not None:
-            stripped = data["slug"].strip()
-            data["slug"] = stripped if stripped else None
-        return data
 
-
-class CreateProductBodySchema(SlugValidationMixin, Schema):
+class CreateProductBodySchema(Schema):
     """Schema for POST /products request body."""
 
-    slug = fields.String(required=False, load_default=None)
     name = fields.String(required=True)
     deployments = fields.List(
         fields.Nested(CreateDeploymentBodySchema),
@@ -147,9 +111,6 @@ class CreateProductBodySchema(SlugValidationMixin, Schema):
 
     @post_load
     def normalize_fields(self, data, **kwargs):
-        if "slug" in data and data["slug"] is not None:
-            stripped = data["slug"].strip()
-            data["slug"] = stripped if stripped else None
         if "name" in data:
             stripped_name = data["name"].strip()
             if not stripped_name:
@@ -161,13 +122,12 @@ class CreateProductBodySchema(SlugValidationMixin, Schema):
         return data
 
     @validates_schema
-    def validate_unique_deployment_slugs(self, data, **kwargs):
+    def validate_unique_deployment_names(self, data, **kwargs):
         deployments = data.get("deployments") or []
-        slugs = [deployment.get("slug") for deployment in deployments]
-
-        if len(slugs) != len(set(slugs)):
+        names = [dep["name"].lower() for dep in deployments if "name" in dep]
+        if len(names) != len(set(names)):
             raise ValidationError(
-                "Deployment slugs must be unique within a product.",
+                "Deployment names must be unique within a product.",
                 field_name="deployments",
             )
 
