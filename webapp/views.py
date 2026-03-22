@@ -1,13 +1,16 @@
 from flask_apispec import use_kwargs
 from sqlalchemy.orm import joinedload
 
+from webapp.database import db
 from webapp.helpers import (
     filter_deployment_versions,
     filter_product_versions,
     is_product_active,
+    slugify,
 )
 from webapp.models import Deployment, Product
 from webapp.schemas import (
+    CreateProductBodySchema,
     DeploymentSchema,
     GetProductsQuerySchema,
     ProductSchema,
@@ -74,3 +77,42 @@ def get_product_deployment(product_slug, deployment_slug, include_expired):
         deployment = filter_deployment_versions(deployment)
 
     return DeploymentSchema().dump(deployment), 200
+
+
+@use_kwargs(CreateProductBodySchema, location="json")
+def create_product(name, deployments):
+    slug = slugify(name)
+
+    existing_product = Product.query.filter_by(slug=slug).one_or_none()
+    if existing_product:
+        return {
+            "error": {
+                "message": "Product or deployment slug already exists.",
+                "details": {"product_slug": slug},
+            }
+        }, 409
+
+    product = Product(slug=slug, name=name)
+    db.session.add(product)
+
+    for dep_data in deployments:
+        deployment = Deployment(
+            slug=slugify(dep_data["name"]),
+            parent_product=slug,
+            name=dep_data["name"],
+            artifact_type=dep_data["artifact_type"],
+        )
+        db.session.add(deployment)
+
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        return {
+            "error": {
+                "message": "Product or deployment slug already exists.",
+                "details": {"product_slug": slug},
+            }
+        }, 409
+
+    return ProductSchema().dump(product), 201
