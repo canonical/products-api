@@ -6,6 +6,7 @@ from webapp.database import db, migrate
 import webapp.views as views
 
 app = FlaskBase(__name__, "products-api")
+app.json.sort_keys = False
 
 # Database Configuration
 app.config["SQLALCHEMY_DATABASE_URI"] = get_flask_env("DATABASE_URL")
@@ -27,6 +28,7 @@ migrate.init_app(app, db)
 docs = FlaskApiSpec(app)
 
 app.add_url_rule("/products", view_func=views.get_products, methods=["GET"])
+app.add_url_rule("/products", view_func=views.create_product, methods=["POST"])
 app.add_url_rule(
     "/products/<string:product_slug>",
     view_func=views.get_product,

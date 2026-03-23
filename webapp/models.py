@@ -1,15 +1,9 @@
-import re
-
 from webapp.constants import ARTIFACT_TYPES
 from webapp.database import db
+from webapp.helpers import slugify
 
 
 ARTIFACT_TYPES_SQL = ", ".join(f"'{artifact}'" for artifact in ARTIFACT_TYPES)
-
-
-def _slugify(value):
-    slug = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
-    return slug or "item"
 
 
 class Product(db.Model):
@@ -86,10 +80,10 @@ class Version(db.Model):
 @db.event.listens_for(Product, "before_insert")
 def generate_product_slug(_, __, target):
     if not target.slug and target.name:
-        target.slug = _slugify(target.name)
+        target.slug = slugify(target.name)
 
 
 @db.event.listens_for(Deployment, "before_insert")
 def generate_deployment_slug(_, __, target):
     if not target.slug and target.name:
-        target.slug = _slugify(target.name)
+        target.slug = slugify(target.name)
