@@ -35,6 +35,11 @@ app.add_url_rule(
     methods=["GET"],
 )
 app.add_url_rule(
+    "/products/<string:product_slug>",
+    view_func=views.create_product_deployment,
+    methods=["POST"],
+)
+app.add_url_rule(
     "/products/<string:product_slug>/<string:deployment_slug>",
     view_func=views.get_product_deployment,
     methods=["GET"],
@@ -44,13 +49,14 @@ app.add_url_rule(
 @app.errorhandler(422)
 def handle_validation_error(error):
     messages = error.data.get("messages", {})
+    details = messages.get("json") or messages.get("query")
 
     return (
         jsonify(
             {
                 "error": {
                     "message": "Invalid request.",
-                    "details": messages.get("query", messages),
+                    "details": details,
                 }
             }
         ),
