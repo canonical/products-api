@@ -108,7 +108,7 @@ def create_product(name, deployments):
     try:
         db.session.commit()
     except Exception:
-        db.session.rollback()
+        db.session.remove()
         return {
             "error": {
                 "message": "Product or deployment slug already exists.",
@@ -158,7 +158,7 @@ def create_product_deployment(product_slug, name, artifact_type):
     try:
         db.session.commit()
     except Exception:
-        db.session.rollback()
+        db.session.remove()
         return {
             "error": {
                 "message": "Deployment already exists.",
