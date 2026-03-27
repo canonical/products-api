@@ -132,6 +132,27 @@ class CreateProductBodySchema(Schema):
             )
 
 
+class CreateProductDeploymentBodySchema(Schema):
+    """Schema for POST /products/<product_slug> request body."""
+
+    name = fields.String(required=True)
+    artifact_type = fields.String(
+        required=True, validate=OneOf(ARTIFACT_TYPES)
+    )
+
+    @post_load
+    def normalize_fields(self, data, **kwargs):
+        if "name" in data:
+            stripped_name = data["name"].strip()
+            if not stripped_name:
+                raise ValidationError(
+                    "Name must not be blank.",
+                    field_name="name",
+                )
+            data["name"] = stripped_name
+        return data
+
+
 class ErrorSchema(Schema):
     """For errors with no field-level detail (e.g. 401, 403)."""
 

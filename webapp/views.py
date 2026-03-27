@@ -10,6 +10,7 @@ from webapp.helpers import (
 )
 from webapp.models import Deployment, Product
 from webapp.schemas import (
+    CreateProductDeploymentBodySchema,
     CreateProductBodySchema,
     DeploymentSchema,
     GetProductsQuerySchema,
@@ -107,7 +108,7 @@ def create_product(name, deployments):
     try:
         db.session.commit()
     except Exception:
-        db.session.rollback()
+        db.session.remove()
         return {
             "error": {
                 "message": "Product or deployment slug already exists.",
@@ -116,3 +117,56 @@ def create_product(name, deployments):
         }, 409
 
     return ProductSchema().dump(product), 201
+
+
+@use_kwargs(CreateProductDeploymentBodySchema, location="json")
+def create_product_deployment(product_slug, name, artifact_type):
+    product = Product.query.filter_by(slug=product_slug).one_or_none()
+    if product is None:
+        return {
+            "error": {
+                "message": "Product not found.",
+                "details": {"product_slug": product_slug},
+            }
+        }, 404
+
+    slug = slugify(name)
+
+    existing_deployment = Deployment.query.filter_by(
+        parent_product=product_slug,
+        slug=slug,
+    ).one_or_none()
+    if existing_deployment is not None:
+        return {
+            "error": {
+                "message": "Deployment already exists.",
+                "details": {
+                    "product_slug": product_slug,
+                    "deployment_slug": slug,
+                },
+            }
+        }, 409
+
+    deployment = Deployment(
+        slug=slug,
+        parent_product=product_slug,
+        name=name,
+        artifact_type=artifact_type,
+    )
+    db.session.add(deployment)
+
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.remove()
+        return {
+            "error": {
+                "message": "Deployment already exists.",
+                "details": {
+                    "product_slug": product_slug,
+                    "deployment_slug": slug,
+                },
+            }
+        }, 409
+
+    return DeploymentSchema().dump(deployment), 201
