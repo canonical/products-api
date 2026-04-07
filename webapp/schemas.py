@@ -143,6 +143,25 @@ class CreateProductDeploymentBodySchema(NormalizeNameMixin, Schema):
     )
 
 
+class UpdateProductDeploymentBodySchema(NormalizeNameMixin, Schema):
+    """
+    Schema for PUT /products/<product_slug>/<deployment_slug> request body.
+    """
+
+    name = fields.String(required=False)
+    artifact_type = fields.String(
+        required=False, validate=OneOf(ARTIFACT_TYPES)
+    )
+
+    @validates_schema
+    def validate_at_least_one_field(self, data, **kwargs):
+        if "name" not in data and "artifact_type" not in data:
+            raise ValidationError(
+                "At least one of 'name' or 'artifact_type' must be provided.",
+                field_name="_schema",
+            )
+
+
 class UpdateProductBodySchema(NormalizeNameMixin, Schema):
     """Schema for PUT /products/<product_slug> request body."""
 
