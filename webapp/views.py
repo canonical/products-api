@@ -15,6 +15,7 @@ from webapp.schemas import (
     DeploymentSchema,
     GetProductsQuerySchema,
     ProductSchema,
+    UpdateProductBodySchema,
 )
 
 
@@ -161,12 +162,42 @@ def create_product_deployment(product_slug, name, artifact_type):
         db.session.remove()
         return {
             "error": {
-                "message": "Deployment already exists.",
-                "details": {
-                    "product_slug": product_slug,
-                    "deployment_slug": slug,
-                },
+                "message": "Internal server error.",
+                "details": {},
             }
-        }, 409
+        }, 500
 
     return DeploymentSchema().dump(deployment), 201
+
+
+@use_kwargs(UpdateProductBodySchema, location="json")
+def update_product(product_slug, name):
+    product = (
+        Product.query.options(
+            joinedload(Product.deployments).joinedload(Deployment.versions)
+        )
+        .filter_by(slug=product_slug)
+        .one_or_none()
+    )
+
+    if product is None:
+        return {
+            "error": {
+                "message": "Product not found.",
+                "details": {"product_slug": product_slug},
+            }
+        }, 404
+
+    product.name = name
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.remove()
+        return {
+            "error": {
+                "message": "Internal server error.",
+                "details": {},
+            }
+        }, 500
+
+    return ProductSchema().dump(product), 200
