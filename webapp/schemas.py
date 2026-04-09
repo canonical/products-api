@@ -10,6 +10,20 @@ from marshmallow.validate import OneOf, Length
 from webapp.constants import ARTIFACT_TYPES, ARCHITECTURES
 
 
+class NormalizeNameMixin:
+    @post_load
+    def normalize_fields(self, data, **kwargs):
+        if "name" in data:
+            stripped_name = data["name"].strip()
+            if not stripped_name:
+                raise ValidationError(
+                    "Name must not be blank.",
+                    field_name="name",
+                )
+            data["name"] = stripped_name
+        return data
+
+
 class DateOrNoteSchema(Schema):
     """DateOrNote support lifecycle field."""
 
@@ -98,7 +112,7 @@ class CreateDeploymentBodySchema(Schema):
     )
 
 
-class CreateProductBodySchema(Schema):
+class CreateProductBodySchema(NormalizeNameMixin, Schema):
     """Schema for POST /products request body."""
 
     name = fields.String(required=True)
@@ -108,18 +122,6 @@ class CreateProductBodySchema(Schema):
         allow_none=False,
         validate=Length(min=1),
     )
-
-    @post_load
-    def normalize_fields(self, data, **kwargs):
-        if "name" in data:
-            stripped_name = data["name"].strip()
-            if not stripped_name:
-                raise ValidationError(
-                    "Name must not be blank.",
-                    field_name="name",
-                )
-            data["name"] = stripped_name
-        return data
 
     @validates_schema
     def validate_unique_deployment_names(self, data, **kwargs):
@@ -132,7 +134,7 @@ class CreateProductBodySchema(Schema):
             )
 
 
-class CreateProductDeploymentBodySchema(Schema):
+class CreateProductDeploymentBodySchema(NormalizeNameMixin, Schema):
     """Schema for POST /products/<product_slug> request body."""
 
     name = fields.String(required=True)
@@ -140,17 +142,11 @@ class CreateProductDeploymentBodySchema(Schema):
         required=True, validate=OneOf(ARTIFACT_TYPES)
     )
 
-    @post_load
-    def normalize_fields(self, data, **kwargs):
-        if "name" in data:
-            stripped_name = data["name"].strip()
-            if not stripped_name:
-                raise ValidationError(
-                    "Name must not be blank.",
-                    field_name="name",
-                )
-            data["name"] = stripped_name
-        return data
+
+class UpdateProductBodySchema(NormalizeNameMixin, Schema):
+    """Schema for PUT /products/<product_slug> request body."""
+
+    name = fields.String(required=True)
 
 
 class ErrorSchema(Schema):

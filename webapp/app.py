@@ -40,6 +40,11 @@ app.add_url_rule(
     methods=["POST"],
 )
 app.add_url_rule(
+    "/products/<string:product_slug>",
+    view_func=views.update_product,
+    methods=["PUT"],
+)
+app.add_url_rule(
     "/products/<string:product_slug>/<string:deployment_slug>",
     view_func=views.get_product_deployment,
     methods=["GET"],
