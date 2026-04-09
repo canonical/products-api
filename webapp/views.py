@@ -8,7 +8,7 @@ from webapp.helpers import (
     is_product_active,
     slugify,
 )
-from webapp.models import Deployment, Product
+from webapp.models import Deployment, Product, Version
 from webapp.schemas import (
     CreateProductDeploymentBodySchema,
     CreateProductBodySchema,
@@ -17,6 +17,7 @@ from webapp.schemas import (
     ProductSchema,
     UpdateProductDeploymentBodySchema,
     UpdateProductBodySchema,
+    VersionSchema,
 )
 
 
@@ -80,6 +81,28 @@ def get_product_deployment(product_slug, deployment_slug, include_expired):
         deployment = filter_deployment_versions(deployment)
 
     return DeploymentSchema().dump(deployment), 200
+
+
+def get_product_deployment_version(product_slug, deployment_slug, release):
+    version = Version.query.filter_by(
+        parent_product=product_slug,
+        parent_deployment=deployment_slug,
+        release=release,
+    ).one_or_none()
+
+    if version is None:
+        return {
+            "error": {
+                "message": "Version not found.",
+                "details": {
+                    "product_slug": product_slug,
+                    "deployment_slug": deployment_slug,
+                    "release": release,
+                },
+            }
+        }, 404
+
+    return VersionSchema().dump(version), 200
 
 
 @use_kwargs(CreateProductBodySchema, location="json")
