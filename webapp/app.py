@@ -49,6 +49,11 @@ app.add_url_rule(
     view_func=views.get_product_deployment,
     methods=["GET"],
 )
+app.add_url_rule(
+    "/products/<string:product_slug>/<string:deployment_slug>",
+    view_func=views.update_product_deployment,
+    methods=["PUT"],
+)
 
 
 @app.errorhandler(422)

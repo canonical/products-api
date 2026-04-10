@@ -15,6 +15,7 @@ from webapp.schemas import (
     DeploymentSchema,
     GetProductsQuerySchema,
     ProductSchema,
+    UpdateProductDeploymentBodySchema,
     UpdateProductBodySchema,
 )
 
@@ -201,3 +202,58 @@ def update_product(product_slug, name):
         }, 500
 
     return ProductSchema().dump(product), 200
+
+
+@use_kwargs(UpdateProductDeploymentBodySchema, location="json")
+def update_product_deployment(
+    product_slug,
+    deployment_slug,
+    name=None,
+    artifact_type=None,
+):
+    product = Product.query.filter_by(slug=product_slug).one_or_none()
+    if product is None:
+        return {
+            "error": {
+                "message": "Product not found.",
+                "details": {"product_slug": product_slug},
+            }
+        }, 404
+
+    deployment = (
+        Deployment.query.options(joinedload(Deployment.versions))
+        .filter_by(
+            parent_product=product_slug,
+            slug=deployment_slug,
+        )
+        .one_or_none()
+    )
+
+    if deployment is None:
+        return {
+            "error": {
+                "message": "Deployment not found.",
+                "details": {
+                    "product_slug": product_slug,
+                    "deployment_slug": deployment_slug,
+                },
+            }
+        }, 404
+
+    if name is not None:
+        deployment.name = name
+    if artifact_type is not None:
+        deployment.artifact_type = artifact_type
+
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.remove()
+        return {
+            "error": {
+                "message": "Internal server error.",
+                "details": {},
+            }
+        }, 500
+
+    return DeploymentSchema().dump(deployment), 200
