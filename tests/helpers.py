@@ -1,7 +1,7 @@
 from tests.fixtures.models import make_deployment, make_product, make_version
 
 
-def _add_product_with_version(db, product_slug, lifecycle_overrides):
+def _add_product_with_version(db, product_slug, lifecycle_overrides, is_hidden=False):
     product = make_product(
         slug=product_slug,
         name=f"Product {product_slug}",
@@ -15,6 +15,7 @@ def _add_product_with_version(db, product_slug, lifecycle_overrides):
         product,
         deployment,
         release=f"{product_slug}-1.0.0",
+        is_hidden=is_hidden,
         **lifecycle_overrides,
     )
     db.session.add(product)

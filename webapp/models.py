@@ -69,10 +69,12 @@ class Version(db.Model):
     architecture = db.Column(db.JSON, nullable=False)
     release_date = db.Column(db.JSON, nullable=False)
     supported = db.Column(db.JSON, nullable=False)
-    pro_supported = db.Column(db.JSON, nullable=False)
+    esm_pro_supported = db.Column(db.JSON, nullable=False)
+    break_bug_pro_supported = db.Column(db.JSON, nullable=False)
     legacy_supported = db.Column(db.JSON, nullable=False)
     upgrade_path = db.Column(db.JSON, nullable=True)
     compatible_ubuntu_lts = db.Column(db.JSON, nullable=True)
+    is_hidden = db.Column(db.Boolean, nullable=False, default=False)
 
     deployment = db.relationship("Deployment", back_populates="versions")
 

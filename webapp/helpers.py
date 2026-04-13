@@ -54,7 +54,8 @@ def is_version_active(version: Any) -> bool:
 
     lifecycle_fields = [
         version.supported,
-        version.pro_supported,
+        version.esm_pro_supported,
+        version.break_bug_pro_supported,
         version.legacy_supported,
     ]
 
@@ -63,16 +64,24 @@ def is_version_active(version: Any) -> bool:
     )
 
 
-def filter_product_versions(product: Any) -> Any:
+def filter_product_versions(
+    product: Any,
+    include_expired: bool = False,
+    include_hidden: bool = False,
+) -> Any:
     """
-    Return a product-like object containing only active
+    Return a product-like object containing only visible
     deployments and versions.
     """
 
     filtered_deployments = []
 
     for deployment in product.deployments:
-        filtered_deployment = filter_deployment_versions(deployment)
+        filtered_deployment = filter_deployment_versions(
+            deployment,
+            include_expired=include_expired,
+            include_hidden=include_hidden,
+        )
 
         if filtered_deployment.versions:
             filtered_deployments.append(filtered_deployment)
@@ -84,13 +93,18 @@ def filter_product_versions(product: Any) -> Any:
     )
 
 
-def filter_deployment_versions(deployment: Any) -> Any:
-    """Return a deployment-like object containing only active versions."""
+def filter_deployment_versions(
+    deployment: Any,
+    include_expired: bool = False,
+    include_hidden: bool = False,
+) -> Any:
+    """Return a deployment-like object containing only visible versions."""
 
-    active_versions = [
+    versions = [
         version
         for version in deployment.versions
-        if is_version_active(version)
+        if (include_expired or is_version_active(version))
+        and (include_hidden or not version.is_hidden)
     ]
 
     return SimpleNamespace(
@@ -98,12 +112,12 @@ def filter_deployment_versions(deployment: Any) -> Any:
         parent_product=deployment.parent_product,
         name=deployment.name,
         artifact_type=deployment.artifact_type,
-        versions=active_versions,
+        versions=versions,
     )
 
 
-def is_product_active(product: Any) -> bool:
-    """Return True if the product has at least one active version."""
+def is_product_active(product: Any, include_hidden: bool = False) -> bool:
+    """Return True if the product has at least one active, visible version."""
 
     versions = [
         version
@@ -114,4 +128,8 @@ def is_product_active(product: Any) -> bool:
     if not versions:
         return True
 
-    return any(is_version_active(version) for version in versions)
+    return any(
+        is_version_active(version)
+        and (include_hidden or not version.is_hidden)
+        for version in versions
+    )

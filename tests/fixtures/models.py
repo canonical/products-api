@@ -31,10 +31,12 @@ def make_version(product, deployment, **overrides):
         "architecture": ["amd64"],
         "release_date": {"date": "2020-01-01"},
         "supported": future_date,
-        "pro_supported": future_date,
+        "esm_pro_supported": future_date,
+        "break_bug_pro_supported": future_date,
         "legacy_supported": future_date,
         "upgrade_path": None,
         "compatible_ubuntu_lts": None,
+        "is_hidden": False,
     }
     return Version(**{**defaults, **overrides})
 
