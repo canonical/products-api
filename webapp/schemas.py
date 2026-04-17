@@ -1,3 +1,5 @@
+from datetime import date
+
 from marshmallow import (
     Schema,
     ValidationError,
@@ -184,6 +186,41 @@ class CreateVersionBodySchema(Schema):
                 )
             data["release"] = stripped_release
         return data
+
+    @validates_schema
+    def validate_dates_after_release(self, data, **kwargs):
+        release_date_field = data.get("release_date", {})
+        release_date_str = release_date_field.get("date")
+        if not release_date_str:
+            return
+
+        try:
+            release_date = date.fromisoformat(release_date_str)
+        except (TypeError, ValueError):
+            return
+
+        lifecycle_fields = {
+            "supported": data.get("supported", {}),
+            "esm_pro_supported": data.get("esm_pro_supported", {}),
+            "break_bug_pro_supported": data.get("break_bug_pro_supported", {}),
+            "legacy_supported": data.get("legacy_supported", {}),
+        }
+
+        for field_name, field_value in lifecycle_fields.items():
+            if not isinstance(field_value, dict):
+                continue
+            lifecycle_date_str = field_value.get("date")
+            if not lifecycle_date_str:
+                continue
+            try:
+                lifecycle_date = date.fromisoformat(lifecycle_date_str)
+            except (TypeError, ValueError):
+                continue
+            if lifecycle_date < release_date:
+                raise ValidationError(
+                    "Must not be before release_date.",
+                    field_name=field_name,
+                )
 
 
 class UpdateProductDeploymentBodySchema(NormalizeNameMixin, Schema):
