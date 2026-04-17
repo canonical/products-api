@@ -36,7 +36,8 @@ class TestGetProductDeployment(BaseTestCase):
             "deployment-expired-default",
             {
                 "supported": {"date": "2000-01-01"},
-                "pro_supported": {"date": "2000-01-01"},
+                "esm_pro_supported": {"date": "2000-01-01"},
+                "break_bug_pro_supported": {"date": "2000-01-01"},
                 "legacy_supported": {"date": "2000-01-01"},
             },
         )
@@ -58,7 +59,8 @@ class TestGetProductDeployment(BaseTestCase):
             "deployment-expired-true",
             {
                 "supported": {"date": "2000-01-01"},
-                "pro_supported": {"date": "2000-01-01"},
+                "esm_pro_supported": {"date": "2000-01-01"},
+                "break_bug_pro_supported": {"date": "2000-01-01"},
                 "legacy_supported": {"date": "2000-01-01"},
             },
         )
@@ -84,6 +86,53 @@ class TestGetProductDeployment(BaseTestCase):
         self.assertIn("message", payload["error"])
         self.assertIn("details", payload["error"])
         self.assertIn("include_expired", payload["error"]["details"])
+
+    def test_get_product_deployment_hidden_excluded_by_default(self):
+        """Hidden versions are excluded from a deployment by default."""
+        _add_product_with_version(
+            self.db,
+            "deployment-hidden-default",
+            {
+                "supported": {"date": "2099-01-01"},
+                "esm_pro_supported": {"date": "2099-01-01"},
+                "break_bug_pro_supported": {"date": "2099-01-01"},
+                "legacy_supported": {"date": "2099-01-01"},
+            },
+            is_hidden=True,
+        )
+
+        response = self.client.get(
+            "/products/deployment-hidden-default/"
+            "deployment-hidden-default-deployment"
+        )
+        payload = response.get_json()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(payload["slug"], "deployment-hidden-default-deployment")
+        self.assertEqual(payload["versions"], [])
+
+    def test_get_product_deployment_include_hidden_true(self):
+        """Hidden versions are included in a deployment when include_hidden=true."""
+        _add_product_with_version(
+            self.db,
+            "deployment-hidden-true",
+            {
+                "supported": {"date": "2099-01-01"},
+                "esm_pro_supported": {"date": "2099-01-01"},
+                "break_bug_pro_supported": {"date": "2099-01-01"},
+                "legacy_supported": {"date": "2099-01-01"},
+            },
+            is_hidden=True,
+        )
+
+        response = self.client.get(
+            "/products/deployment-hidden-true/"
+            "deployment-hidden-true-deployment?include_hidden=true"
+        )
+        payload = response.get_json()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(payload["versions"]), 1)
 
     def test_get_product_deployment_not_found_returns_404(self):
         """Unknown deployment returns 404 with identifying details."""

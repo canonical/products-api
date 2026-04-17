@@ -55,6 +55,11 @@ app.add_url_rule(
     methods=["PUT"],
 )
 app.add_url_rule(
+    "/products/<string:product_slug>/<string:deployment_slug>",
+    view_func=views.create_version,
+    methods=["POST"],
+)
+app.add_url_rule(
     (
         "/products/<string:product_slug>/"
         "<string:deployment_slug>/<string:release>"

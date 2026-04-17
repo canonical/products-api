@@ -10,6 +10,7 @@ from webapp.helpers import (
 )
 from webapp.models import Deployment, Product, Version
 from webapp.schemas import (
+    CreateVersionBodySchema,
     CreateProductDeploymentBodySchema,
     CreateProductBodySchema,
     DeploymentSchema,
@@ -22,17 +23,29 @@ from webapp.schemas import (
 
 
 @use_kwargs(GetProductsQuerySchema, location="query")
-def get_products(include_expired):
+def get_products(include_expired, include_hidden):
     products = Product.query.options(
         joinedload(Product.deployments).joinedload(Deployment.versions)
     ).all()
     if not include_expired:
-        products = [p for p in products if is_product_active(p)]
-    return {"products": ProductSchema(many=True).dump(products)}, 200
+        products = [
+            p
+            for p in products
+            if is_product_active(p, include_hidden=include_hidden)
+        ]
+    filtered = [
+        filter_product_versions(
+            p,
+            include_expired=include_expired,
+            include_hidden=include_hidden,
+        )
+        for p in products
+    ]
+    return {"products": ProductSchema(many=True).dump(filtered)}, 200
 
 
 @use_kwargs(GetProductsQuerySchema, location="query")
-def get_product(product_slug, include_expired):
+def get_product(product_slug, include_expired, include_hidden):
     product = (
         Product.query.options(
             joinedload(Product.deployments).joinedload(Deployment.versions)
@@ -49,14 +62,19 @@ def get_product(product_slug, include_expired):
             }
         }, 404
 
-    if not include_expired:
-        product = filter_product_versions(product)
+    product = filter_product_versions(
+        product,
+        include_expired=include_expired,
+        include_hidden=include_hidden,
+    )
 
     return ProductSchema().dump(product), 200
 
 
 @use_kwargs(GetProductsQuerySchema, location="query")
-def get_product_deployment(product_slug, deployment_slug, include_expired):
+def get_product_deployment(
+    product_slug, deployment_slug, include_expired, include_hidden
+):
     deployment = (
         Deployment.query.options(joinedload(Deployment.versions))
         .filter_by(
@@ -77,8 +95,11 @@ def get_product_deployment(product_slug, deployment_slug, include_expired):
             }
         }, 404
 
-    if not include_expired:
-        deployment = filter_deployment_versions(deployment)
+    deployment = filter_deployment_versions(
+        deployment,
+        include_expired=include_expired,
+        include_hidden=include_hidden,
+    )
 
     return DeploymentSchema().dump(deployment), 200
 
@@ -192,6 +213,92 @@ def create_product_deployment(product_slug, name, artifact_type):
         }, 500
 
     return DeploymentSchema().dump(deployment), 201
+
+
+@use_kwargs(CreateVersionBodySchema, location="json")
+def create_version(
+    product_slug,
+    deployment_slug,
+    release,
+    architecture,
+    release_date,
+    supported,
+    esm_pro_supported,
+    break_bug_pro_supported,
+    legacy_supported,
+    upgrade_path=None,
+    compatible_ubuntu_lts=None,
+    is_hidden=False,
+):
+    product = Product.query.filter_by(slug=product_slug).one_or_none()
+    if product is None:
+        return {
+            "error": {
+                "message": "Product not found.",
+                "details": {"product_slug": product_slug},
+            }
+        }, 404
+
+    deployment = Deployment.query.filter_by(
+        parent_product=product_slug,
+        slug=deployment_slug,
+    ).one_or_none()
+    if deployment is None:
+        return {
+            "error": {
+                "message": "Deployment not found.",
+                "details": {
+                    "product_slug": product_slug,
+                    "deployment_slug": deployment_slug,
+                },
+            }
+        }, 404
+
+    existing_version = Version.query.filter_by(
+        parent_product=product_slug,
+        parent_deployment=deployment_slug,
+        release=release,
+    ).one_or_none()
+    if existing_version is not None:
+        return {
+            "error": {
+                "message": "Version already exists.",
+                "details": {
+                    "product_slug": product_slug,
+                    "deployment_slug": deployment_slug,
+                    "release": release,
+                },
+            }
+        }, 409
+
+    version = Version(
+        parent_product=product_slug,
+        parent_deployment=deployment_slug,
+        release=release,
+        architecture=architecture,
+        release_date=release_date,
+        supported=supported,
+        esm_pro_supported=esm_pro_supported,
+        break_bug_pro_supported=break_bug_pro_supported,
+        legacy_supported=legacy_supported,
+        upgrade_path=upgrade_path,
+        compatible_ubuntu_lts=compatible_ubuntu_lts,
+        is_hidden=is_hidden,
+    )
+    db.session.add(version)
+
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.remove()
+        return {
+            "error": {
+                "message": "Internal server error.",
+                "details": {},
+            }
+        }, 500
+
+    return VersionSchema().dump(version), 201
 
 
 @use_kwargs(UpdateProductBodySchema, location="json")
