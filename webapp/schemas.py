@@ -242,6 +242,53 @@ class UpdateProductDeploymentBodySchema(NormalizeNameMixin, Schema):
             )
 
 
+class UpdateVersionBodySchema(Schema):
+    """
+    Schema for PUT /products/<product_slug>/<deployment_slug>/<release>
+    request body.
+    """
+
+    architecture = fields.List(
+        fields.String(validate=OneOf(ARCHITECTURES)),
+        required=False,
+        allow_none=True,
+        validate=Length(min=1),
+    )
+    release_date = fields.Nested(DateOrNoteSchema, required=False)
+    supported = fields.Nested(DateOrNoteSchema, required=False)
+    esm_pro_supported = fields.Nested(DateOrNoteSchema, required=False)
+    break_bug_pro_supported = fields.Nested(DateOrNoteSchema, required=False)
+    legacy_supported = fields.Nested(DateOrNoteSchema, required=False)
+    upgrade_path = fields.List(
+        fields.String(), required=False, allow_none=True
+    )
+    compatible_ubuntu_lts = fields.List(
+        fields.Nested(CompatibleLTSSchema),
+        required=False,
+        allow_none=True,
+    )
+    is_hidden = fields.Boolean(required=False)
+
+    @validates_schema
+    def validate_at_least_one_field(self, data, **kwargs):
+        updatable_fields = [
+            "architecture",
+            "release_date",
+            "supported",
+            "esm_pro_supported",
+            "break_bug_pro_supported",
+            "legacy_supported",
+            "upgrade_path",
+            "compatible_ubuntu_lts",
+            "is_hidden",
+        ]
+        if not any(field in data for field in updatable_fields):
+            raise ValidationError(
+                "At least one field must be provided.",
+                field_name="_schema",
+            )
+
+
 class UpdateProductBodySchema(NormalizeNameMixin, Schema):
     """Schema for PUT /products/<product_slug> request body."""
 
