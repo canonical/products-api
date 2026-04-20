@@ -1,10 +1,11 @@
-from datetime import date
+from datetime import date as date_type
 
 from marshmallow import (
     Schema,
     ValidationError,
     fields,
     post_load,
+    validates,
     validates_schema,
 )
 from marshmallow.validate import OneOf, Length
@@ -31,6 +32,17 @@ class DateOrNoteSchema(Schema):
 
     date = fields.String(required=False, allow_none=True)
     notes = fields.String(required=False, allow_none=True)
+
+    @validates("date")
+    def validate_date_format(self, value):
+        if value is None:
+            return
+        try:
+            date_type.fromisoformat(value)
+        except (TypeError, ValueError):
+            raise ValidationError(
+                "Must be a valid ISO 8601 date, e.g. '2027-04-30'."
+            )
 
     @validates_schema
     def validate_date_or_note(self, data, **kwargs):
@@ -194,10 +206,7 @@ class CreateVersionBodySchema(Schema):
         if not release_date_str:
             return
 
-        try:
-            release_date = date.fromisoformat(release_date_str)
-        except (TypeError, ValueError):
-            return
+        release_date = date_type.fromisoformat(release_date_str)
 
         lifecycle_fields = {
             "supported": data.get("supported", {}),
@@ -212,10 +221,7 @@ class CreateVersionBodySchema(Schema):
             lifecycle_date_str = field_value.get("date")
             if not lifecycle_date_str:
                 continue
-            try:
-                lifecycle_date = date.fromisoformat(lifecycle_date_str)
-            except (TypeError, ValueError):
-                continue
+            lifecycle_date = date_type.fromisoformat(lifecycle_date_str)
             if lifecycle_date < release_date:
                 raise ValidationError(
                     "Must not be before release_date.",

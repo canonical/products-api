@@ -196,6 +196,26 @@ class TestCreateProductDeploymentVersion(BaseTestCase):
 
         self.assertEqual(response.status_code, 201)
 
+    def test_create_product_deployment_version_invalid_date_format_returns_400(self):
+        """POST with an invalid date string in a DateOrNote field returns 400."""
+        response = self.client.post(
+            "/products/test-product/test-deployment",
+            json={
+                "release": "6.0.0",
+                "architecture": ["amd64"],
+                "release_date": {"date": "2026-06-01"},
+                "supported": {"date": "not-a-real-date"},
+                "esm_pro_supported": {"date": "2028-06-01"},
+                "break_bug_pro_supported": {"date": "2029-06-01"},
+                "legacy_supported": {"notes": "until further notice"},
+            },
+        )
+        payload = response.get_json()
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("error", payload)
+        self.assertIn("details", payload["error"])
+
     def test_create_product_deployment_version_product_not_found_returns_404(self):
         """Unknown product returns 404 with identifying details."""
         response = self.client.post(
