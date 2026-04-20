@@ -37,7 +37,8 @@ class TestGetProducts(BaseTestCase):
             "expired-default",
             {
                 "supported": {"date": "2000-01-01"},
-                "pro_supported": {"date": "2000-01-01"},
+                "esm_pro_supported": {"date": "2000-01-01"},
+                "break_bug_pro_supported": {"date": "2000-01-01"},
                 "legacy_supported": {"date": "2000-01-01"},
             },
         )
@@ -56,7 +57,8 @@ class TestGetProducts(BaseTestCase):
             "expired-true",
             {
                 "supported": {"date": "2000-01-01"},
-                "pro_supported": {"date": "2000-01-01"},
+                "esm_pro_supported": {"date": "2000-01-01"},
+                "break_bug_pro_supported": {"date": "2000-01-01"},
                 "legacy_supported": {"date": "2000-01-01"},
             },
         )
@@ -74,7 +76,8 @@ class TestGetProducts(BaseTestCase):
             "notes-until",
             {
                 "supported": {"notes": "Supported until further notice"},
-                "pro_supported": {"notes": "deprecated"},
+                "esm_pro_supported": {"notes": "deprecated"},
+                "break_bug_pro_supported": {"notes": "deprecated"},
                 "legacy_supported": {"notes": "deprecated"},
             },
         )
@@ -92,7 +95,8 @@ class TestGetProducts(BaseTestCase):
             "notes-no-until",
             {
                 "supported": {"notes": "deprecated"},
-                "pro_supported": {"notes": "deprecated"},
+                "esm_pro_supported": {"notes": "deprecated"},
+                "break_bug_pro_supported": {"notes": "deprecated"},
                 "legacy_supported": {"notes": "deprecated"},
             },
         )
@@ -102,6 +106,46 @@ class TestGetProducts(BaseTestCase):
         slugs = _extract_slugs(payload)
 
         self.assertNotIn("notes-no-until", slugs)
+
+    def test_get_products_hidden_excluded_by_default(self):
+        """Hidden versions cause their product to be excluded by default."""
+        _add_product_with_version(
+            self.db,
+            "hidden-default",
+            {
+                "supported": {"date": "2099-01-01"},
+                "esm_pro_supported": {"date": "2099-01-01"},
+                "break_bug_pro_supported": {"date": "2099-01-01"},
+                "legacy_supported": {"date": "2099-01-01"},
+            },
+            is_hidden=True,
+        )
+
+        response = self.client.get("/products")
+        payload = response.get_json()
+        slugs = _extract_slugs(payload)
+
+        self.assertNotIn("hidden-default", slugs)
+
+    def test_get_products_include_hidden_true(self):
+        """Hidden products are included when include_hidden=true."""
+        _add_product_with_version(
+            self.db,
+            "hidden-included",
+            {
+                "supported": {"date": "2099-01-01"},
+                "esm_pro_supported": {"date": "2099-01-01"},
+                "break_bug_pro_supported": {"date": "2099-01-01"},
+                "legacy_supported": {"date": "2099-01-01"},
+            },
+            is_hidden=True,
+        )
+
+        response = self.client.get("/products?include_hidden=true")
+        payload = response.get_json()
+        slugs = _extract_slugs(payload)
+
+        self.assertIn("hidden-included", slugs)
 
     def test_get_products_invalid_include_expired_returns_400(self):
         """An invalid include_expired value returns 400 with the correct error shape."""

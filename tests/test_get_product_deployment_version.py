@@ -25,7 +25,8 @@ class TestGetProductDeploymentVersion(BaseTestCase):
         self.assertIn("architecture", payload)
         self.assertIn("release_date", payload)
         self.assertIn("supported", payload)
-        self.assertIn("pro_supported", payload)
+        self.assertIn("esm_pro_supported", payload)
+        self.assertIn("break_bug_pro_supported", payload)
         self.assertIn("legacy_supported", payload)
 
     def test_get_product_deployment_version_not_found_returns_404(self):

@@ -1,8 +1,11 @@
+from datetime import date as date_type
+
 from marshmallow import (
     Schema,
     ValidationError,
     fields,
     post_load,
+    validates,
     validates_schema,
 )
 from marshmallow.validate import OneOf, Length
@@ -29,6 +32,17 @@ class DateOrNoteSchema(Schema):
 
     date = fields.String(required=False, allow_none=True)
     notes = fields.String(required=False, allow_none=True)
+
+    @validates("date")
+    def validate_date_format(self, value):
+        if value is None:
+            return
+        try:
+            date_type.fromisoformat(value)
+        except (TypeError, ValueError):
+            raise ValidationError(
+                "Must be a valid ISO 8601 date, e.g. '2027-04-30'."
+            )
 
     @validates_schema
     def validate_date_or_note(self, data, **kwargs):
@@ -87,7 +101,8 @@ class VersionSchema(Schema):
     )
     release_date = fields.Nested(DateOrNoteSchema, required=True)
     supported = fields.Nested(DateOrNoteSchema, required=True)
-    pro_supported = fields.Nested(DateOrNoteSchema, required=True)
+    esm_pro_supported = fields.Nested(DateOrNoteSchema, required=True)
+    break_bug_pro_supported = fields.Nested(DateOrNoteSchema, required=True)
     legacy_supported = fields.Nested(DateOrNoteSchema, required=True)
     upgrade_path = fields.List(
         fields.String(), required=False, allow_none=True
@@ -97,10 +112,12 @@ class VersionSchema(Schema):
         required=False,
         allow_none=True,
     )
+    is_hidden = fields.Boolean(dump_only=False, load_default=False)
 
 
 class GetProductsQuerySchema(Schema):
     include_expired = fields.Boolean(load_default=False)
+    include_hidden = fields.Boolean(load_default=False)
 
 
 class CreateDeploymentBodySchema(Schema):
@@ -141,6 +158,75 @@ class CreateProductDeploymentBodySchema(NormalizeNameMixin, Schema):
     artifact_type = fields.String(
         required=True, validate=OneOf(ARTIFACT_TYPES)
     )
+
+
+class CreateVersionBodySchema(Schema):
+    """
+    Schema for POST /products/<product_slug>/<deployment_slug> request body.
+    """
+
+    release = fields.String(required=True)
+    architecture = fields.List(
+        fields.String(validate=OneOf(ARCHITECTURES)),
+        required=True,
+        allow_none=False,
+        validate=Length(min=1),
+    )
+    release_date = fields.Nested(DateOrNoteSchema, required=True)
+    supported = fields.Nested(DateOrNoteSchema, required=True)
+    esm_pro_supported = fields.Nested(DateOrNoteSchema, required=True)
+    break_bug_pro_supported = fields.Nested(DateOrNoteSchema, required=True)
+    legacy_supported = fields.Nested(DateOrNoteSchema, required=True)
+    upgrade_path = fields.List(
+        fields.String(), required=False, allow_none=True
+    )
+    compatible_ubuntu_lts = fields.List(
+        fields.Nested(CompatibleLTSSchema),
+        required=False,
+        allow_none=True,
+    )
+    is_hidden = fields.Boolean(required=False, load_default=False)
+
+    @post_load
+    def normalize_fields(self, data, **kwargs):
+        if "release" in data:
+            stripped_release = data["release"].strip()
+            if not stripped_release:
+                raise ValidationError(
+                    "Release must not be blank.",
+                    field_name="release",
+                )
+            data["release"] = stripped_release
+        return data
+
+    @validates_schema
+    def validate_dates_after_release(self, data, **kwargs):
+        release_date_field = data.get("release_date", {})
+        release_date_str = release_date_field.get("date")
+        if not release_date_str:
+            return
+
+        release_date = date_type.fromisoformat(release_date_str)
+
+        lifecycle_fields = {
+            "supported": data.get("supported", {}),
+            "esm_pro_supported": data.get("esm_pro_supported", {}),
+            "break_bug_pro_supported": data.get("break_bug_pro_supported", {}),
+            "legacy_supported": data.get("legacy_supported", {}),
+        }
+
+        for field_name, field_value in lifecycle_fields.items():
+            if not isinstance(field_value, dict):
+                continue
+            lifecycle_date_str = field_value.get("date")
+            if not lifecycle_date_str:
+                continue
+            lifecycle_date = date_type.fromisoformat(lifecycle_date_str)
+            if lifecycle_date < release_date:
+                raise ValidationError(
+                    "Must not be before release_date.",
+                    field_name=field_name,
+                )
 
 
 class UpdateProductDeploymentBodySchema(NormalizeNameMixin, Schema):
