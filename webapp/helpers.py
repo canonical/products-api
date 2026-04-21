@@ -133,3 +133,26 @@ def is_product_active(product: Any, include_hidden: bool = False) -> bool:
         and (include_hidden or not version.is_hidden)
         for version in versions
     )
+
+
+def validate_dates_after_release(
+    release_date: date,
+    lifecycle_fields: dict,
+) -> dict:
+    """
+    Return a field-level error if any lifecycle date falls before
+    release_date. Only checks fields with concrete dates.
+    """
+    for field_name, field_value in lifecycle_fields.items():
+        if not isinstance(field_value, dict):
+            continue
+        lifecycle_date_str = field_value.get("date")
+        if not lifecycle_date_str:
+            continue
+        try:
+            lifecycle_date = date.fromisoformat(lifecycle_date_str)
+        except (TypeError, ValueError):
+            continue
+        if lifecycle_date < release_date:
+            return {field_name: ["Must not be before release_date."]}
+    return {}

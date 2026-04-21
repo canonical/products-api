@@ -1,3 +1,5 @@
+from datetime import date
+
 from flask_apispec import use_kwargs
 from sqlalchemy.orm import joinedload
 
@@ -7,6 +9,7 @@ from webapp.helpers import (
     filter_product_versions,
     is_product_active,
     slugify,
+    validate_dates_after_release,
 )
 from webapp.models import Deployment, Product, Version
 from webapp.schemas import (
@@ -18,6 +21,7 @@ from webapp.schemas import (
     ProductSchema,
     UpdateProductDeploymentBodySchema,
     UpdateProductBodySchema,
+    UpdateVersionBodySchema,
     VersionSchema,
 )
 
@@ -387,3 +391,104 @@ def update_product_deployment(
         }, 500
 
     return DeploymentSchema().dump(deployment), 200
+
+
+@use_kwargs(UpdateVersionBodySchema, location="json")
+def update_version(product_slug, deployment_slug, release, **data):
+    product = Product.query.filter_by(slug=product_slug).one_or_none()
+    if product is None:
+        return {
+            "error": {
+                "message": "Product not found.",
+                "details": {"product_slug": product_slug},
+            }
+        }, 404
+
+    deployment = Deployment.query.filter_by(
+        parent_product=product_slug,
+        slug=deployment_slug,
+    ).one_or_none()
+
+    if deployment is None:
+        return {
+            "error": {
+                "message": "Deployment not found.",
+                "details": {
+                    "product_slug": product_slug,
+                    "deployment_slug": deployment_slug,
+                },
+            }
+        }, 404
+
+    version = Version.query.filter_by(
+        parent_product=product_slug,
+        parent_deployment=deployment_slug,
+        release=release,
+    ).one_or_none()
+
+    if version is None:
+        return {
+            "error": {
+                "message": "Version not found.",
+                "details": {
+                    "product_slug": product_slug,
+                    "deployment_slug": deployment_slug,
+                    "release": release,
+                },
+            }
+        }, 404
+
+    effective_release_date_str = (data.get("release_date", {}) or {}).get(
+        "date"
+    ) or (version.release_date or {}).get("date")
+
+    if effective_release_date_str:
+        try:
+            effective_release_date = date.fromisoformat(
+                effective_release_date_str
+            )
+        except (TypeError, ValueError):
+            effective_release_date = None
+
+        if effective_release_date:
+            lifecycle_fields = {
+                "supported": data.get("supported", version.supported or {}),
+                "esm_pro_supported": data.get(
+                    "esm_pro_supported",
+                    version.esm_pro_supported or {},
+                ),
+                "break_bug_pro_supported": data.get(
+                    "break_bug_pro_supported",
+                    version.break_bug_pro_supported or {},
+                ),
+                "legacy_supported": data.get(
+                    "legacy_supported",
+                    version.legacy_supported or {},
+                ),
+            }
+            errors = validate_dates_after_release(
+                effective_release_date, lifecycle_fields
+            )
+            if errors:
+                return {
+                    "error": {
+                        "message": "Invalid request.",
+                        "details": errors,
+                    }
+                }, 400
+
+    for field, value in data.items():
+        setattr(version, field, value)
+
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.remove()
+        return {
+            "error": {
+                "message": "Internal server error.",
+                "details": {},
+            }
+        }, 500
+
+    return VersionSchema().dump(version), 200
