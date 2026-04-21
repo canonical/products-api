@@ -438,9 +438,9 @@ def update_version(product_slug, deployment_slug, release, **data):
             }
         }, 404
 
-    effective_release_date_str = (
-        data.get("release_date", {}) or {}
-    ).get("date") or (version.release_date or {}).get("date")
+    effective_release_date_str = (data.get("release_date", {}) or {}).get(
+        "date"
+    ) or (version.release_date or {}).get("date")
 
     if effective_release_date_str:
         try:
@@ -452,9 +452,7 @@ def update_version(product_slug, deployment_slug, release, **data):
 
         if effective_release_date:
             lifecycle_fields = {
-                "supported": data.get(
-                    "supported", version.supported or {}
-                ),
+                "supported": data.get("supported", version.supported or {}),
                 "esm_pro_supported": data.get(
                     "esm_pro_supported",
                     version.esm_pro_supported or {},

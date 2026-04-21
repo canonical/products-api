@@ -257,7 +257,7 @@ class UpdateVersionBodySchema(Schema):
     architecture = fields.List(
         fields.String(validate=OneOf(ARCHITECTURES)),
         required=False,
-        allow_none=True,
+        allow_none=False,
         validate=Length(min=1),
     )
     release_date = fields.Nested(DateOrNoteSchema, required=False)
