@@ -140,10 +140,9 @@ def validate_dates_after_release(
     lifecycle_fields: dict,
 ) -> dict:
     """
-    Return a dict of field-level errors where a lifecycle date
-    falls before release_date. Only checks fields with concrete dates.
+    Return a field-level error if any lifecycle date falls before
+    release_date. Only checks fields with concrete dates.
     """
-    errors = {}
     for field_name, field_value in lifecycle_fields.items():
         if not isinstance(field_value, dict):
             continue
@@ -155,5 +154,5 @@ def validate_dates_after_release(
         except (TypeError, ValueError):
             continue
         if lifecycle_date < release_date:
-            errors[field_name] = ["Must not be before release_date."]
-    return errors
+            return {field_name: ["Must not be before release_date."]}
+    return {}
