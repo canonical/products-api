@@ -338,6 +338,37 @@ def update_product(product_slug, name):
     return ProductSchema().dump(product), 200
 
 
+def delete_product(product_slug):
+    product = Product.query.filter_by(slug=product_slug).one_or_none()
+
+    if product is None:
+        return {
+            "error": {
+                "message": "Product not found.",
+                "details": {"product_slug": product_slug},
+            }
+        }, 404
+
+    deleted = {
+        "slug": product.slug,
+        "name": product.name,
+    }
+
+    db.session.delete(product)
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.remove()
+        return {
+            "error": {
+                "message": "Internal server error.",
+                "details": {},
+            }
+        }, 500
+
+    return {"deleted": deleted}, 200
+
+
 @use_kwargs(UpdateProductDeploymentBodySchema, location="json")
 def update_product_deployment(
     product_slug,
