@@ -75,6 +75,14 @@ app.add_url_rule(
     view_func=views.update_version,
     methods=["PUT"],
 )
+app.add_url_rule(
+    (
+        "/products/<string:product_slug>/"
+        "<string:deployment_slug>/<string:release>"
+    ),
+    view_func=views.delete_version,
+    methods=["DELETE"],
+)
 
 
 @app.errorhandler(422)
