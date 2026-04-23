@@ -22,7 +22,10 @@ def make_deployment(product, **overrides):
 
 
 def make_version(product, deployment, **overrides):
-    """Create a Version instance with required DateOrNote fields using future defaults."""
+    """Create a Version with required DateOrNote fields.
+
+    Uses future-default lifecycle dates unless overridden.
+    """
     future_date = {"date": "2099-01-01"}
     defaults = {
         "parent_product": product.slug,

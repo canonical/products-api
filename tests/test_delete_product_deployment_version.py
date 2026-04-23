@@ -5,7 +5,7 @@ from webapp.models import Version
 
 
 class TestDeleteProductDeploymentVersion(BaseTestCase):
-    def test_delete_product_deployment_version_returns_200_with_deleted_payload(
+    def test_delete_version_returns_200_with_deleted_payload(
         self,
     ):
         """DELETE returns deleted version metadata."""
@@ -21,6 +21,7 @@ class TestDeleteProductDeploymentVersion(BaseTestCase):
                 "deleted": {
                     "release": "1.0.0",
                     "parent_deployment": "test-deployment",
+                    "parent_product": "test-product",
                 }
             },
         )
@@ -42,7 +43,7 @@ class TestDeleteProductDeploymentVersion(BaseTestCase):
             {"product_slug": "does-not-exist"},
         )
 
-    def test_delete_product_deployment_version_deployment_not_found_returns_404(
+    def test_delete_version_deployment_not_found_returns_404(
         self,
     ):
         """Unknown deployment returns 404 with identifying details."""

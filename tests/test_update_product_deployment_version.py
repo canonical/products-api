@@ -4,7 +4,9 @@ from tests import BaseTestCase
 
 
 class TestUpdateProductDeploymentVersion(BaseTestCase):
-    def test_update_product_deployment_version_updates_fields_and_returns_200(self):
+    def test_update_product_deployment_version_updates_fields_and_returns_200(
+        self,
+    ):
         """PUT updates version fields and returns 200 with updated payload."""
         response = self.client.put(
             "/products/test-product/test-deployment/1.0.0",
@@ -78,7 +80,9 @@ class TestUpdateProductDeploymentVersion(BaseTestCase):
         self.assertEqual(payload["error"]["message"], "Invalid request.")
         self.assertIn("details", payload["error"])
 
-    def test_update_product_deployment_version_invalid_architecture_returns_400(self):
+    def test_update_version_invalid_architecture_returns_400(
+        self,
+    ):
         """PUT with invalid architecture returns 400 with field details."""
         response = self.client.put(
             "/products/test-product/test-deployment/1.0.0",
@@ -112,7 +116,9 @@ class TestUpdateProductDeploymentVersion(BaseTestCase):
             },
         )
 
-    def test_update_product_deployment_version_deployment_not_found_returns_404(self):
+    def test_update_version_deployment_not_found_returns_404(
+        self,
+    ):
         """Unknown deployment returns 404 with identifying details."""
         response = self.client.put(
             "/products/test-product/does-not-exist/1.0.0",
@@ -131,7 +137,9 @@ class TestUpdateProductDeploymentVersion(BaseTestCase):
             },
         )
 
-    def test_update_product_deployment_version_product_not_found_returns_404(self):
+    def test_update_product_deployment_version_product_not_found_returns_404(
+        self,
+    ):
         """Unknown product returns 404 with identifying details."""
         response = self.client.put(
             "/products/does-not-exist/test-deployment/1.0.0",
@@ -147,8 +155,10 @@ class TestUpdateProductDeploymentVersion(BaseTestCase):
             {"product_slug": "does-not-exist"},
         )
 
-    def test_update_version_lifecycle_date_before_release_date_returns_400(self):
-        """PUT with a lifecycle date before the stored release_date returns 400."""
+    def test_update_version_lifecycle_date_before_release_date_returns_400(
+        self,
+    ):
+        """PUT with lifecycle date before stored release_date returns 400."""
         response = self.client.put(
             "/products/test-product/test-deployment/1.0.0",
             json={
@@ -162,10 +172,10 @@ class TestUpdateProductDeploymentVersion(BaseTestCase):
         self.assertEqual(payload["error"]["message"], "Invalid request.")
         self.assertIn("supported", payload["error"]["details"])
 
-    def test_update_version_new_release_date_before_existing_lifecycle_returns_400(
+    def test_update_version_release_date_after_existing_lifecycle_returns_400(
         self,
     ):
-        """PUT with a release_date after existing lifecycle dates returns 400."""
+        """PUT with release_date after existing lifecycle dates returns 400."""
         response = self.client.put(
             "/products/test-product/test-deployment/1.0.0",
             json={
@@ -178,18 +188,16 @@ class TestUpdateProductDeploymentVersion(BaseTestCase):
         self.assertIn("error", payload)
         self.assertEqual(payload["error"]["message"], "Invalid request.")
 
-    def test_update_version_notes_only_lifecycle_not_checked_against_release_date(
+    def test_update_version_notes_only_lifecycle_not_checked(
         self,
     ):
-        """PUT with notes-only lifecycle fields is not subject to date ordering validation."""
+        """PUT with notes-only lifecycle fields skips date ordering checks."""
         response = self.client.put(
             "/products/test-product/test-deployment/1.0.0",
             json={
                 "supported": {"notes": "until further notice"},
             },
         )
-        payload = response.get_json()
-
         self.assertEqual(response.status_code, 200)
 
     def test_update_version_release_date_and_lifecycle_date_same_day_is_valid(
@@ -202,8 +210,6 @@ class TestUpdateProductDeploymentVersion(BaseTestCase):
                 "supported": {"date": "2020-01-01"},
             },
         )
-        payload = response.get_json()
-
         self.assertEqual(response.status_code, 200)
 
 

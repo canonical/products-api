@@ -539,10 +539,11 @@ def delete_version(product_slug, deployment_slug, release):
     deleted = {
         "release": version.release,
         "parent_deployment": version.parent_deployment,
+        "parent_product": version.parent_product,
     }
 
-    db.session.delete(version)
     try:
+        db.session.delete(version)
         db.session.commit()
     except Exception:
         db.session.remove()

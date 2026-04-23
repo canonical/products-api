@@ -49,11 +49,13 @@ class TestGetProductDeployment(BaseTestCase):
         payload = response.get_json()
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(payload["slug"], "deployment-expired-default-deployment")
+        self.assertEqual(
+            payload["slug"], "deployment-expired-default-deployment"
+        )
         self.assertEqual(payload["versions"], [])
 
     def test_get_product_deployment_include_expired_true(self):
-        """Expired versions are included in a deployment when include_expired=true."""
+        """Expired versions are included with include_expired=true."""
         _add_product_with_version(
             self.db,
             "deployment-expired-true",
@@ -74,8 +76,10 @@ class TestGetProductDeployment(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(payload["versions"]), 1)
 
-    def test_get_product_deployment_invalid_include_expired_returns_400_with_error_shape(self):
-        """Invalid include_expired returns 400 with error.message and error.details."""
+    def test_get_deployment_invalid_include_expired_returns_400(
+        self,
+    ):
+        """Invalid include_expired returns 400 with error fields."""
         response = self.client.get(
             "/products/test-product/test-deployment?include_expired=not-a-bool"
         )
@@ -108,11 +112,13 @@ class TestGetProductDeployment(BaseTestCase):
         payload = response.get_json()
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(payload["slug"], "deployment-hidden-default-deployment")
+        self.assertEqual(
+            payload["slug"], "deployment-hidden-default-deployment"
+        )
         self.assertEqual(payload["versions"], [])
 
     def test_get_product_deployment_include_hidden_true(self):
-        """Hidden versions are included in a deployment when include_hidden=true."""
+        """Hidden versions are included with include_hidden=true."""
         _add_product_with_version(
             self.db,
             "deployment-hidden-true",
@@ -136,9 +142,7 @@ class TestGetProductDeployment(BaseTestCase):
 
     def test_get_product_deployment_not_found_returns_404(self):
         """Unknown deployment returns 404 with identifying details."""
-        response = self.client.get(
-            "/products/test-product/does-not-exist"
-        )
+        response = self.client.get("/products/test-product/does-not-exist")
         payload = response.get_json()
 
         self.assertEqual(response.status_code, 404)

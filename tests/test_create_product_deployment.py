@@ -40,7 +40,7 @@ class TestCreateProductDeployment(BaseTestCase):
         self.assertIn("artifact_type", payload["error"]["details"])
 
     def test_create_product_deployment_missing_name_returns_400(self):
-        """POST /products/<product_slug> without name returns 400 with error.details."""
+        """POST /products/<product_slug> without name returns 400."""
         response = self.client.post(
             "/products/test-product",
             json={
@@ -54,7 +54,7 @@ class TestCreateProductDeployment(BaseTestCase):
         self.assertIn("details", payload["error"])
 
     def test_create_product_deployment_whitespace_only_name_returns_400(self):
-        """POST /products/<product_slug> with whitespace-only name returns 400 with error.details."""
+        """POST /products/<product_slug> with whitespace name returns 400."""
         response = self.client.post(
             "/products/test-product",
             json={

@@ -12,7 +12,7 @@ class TestGetProduct(BaseTestCase):
         self.assertEqual(response.status_code, 200)
 
     def test_get_product_response_shape(self):
-        """Response returns a single product with nested deployments and versions."""
+        """Response returns one product with deployments and versions."""
         response = self.client.get("/products/test-product")
         payload = response.get_json()
 
@@ -70,8 +70,10 @@ class TestGetProduct(BaseTestCase):
         self.assertEqual(len(payload["deployments"]), 1)
         self.assertEqual(len(payload["deployments"][0]["versions"]), 1)
 
-    def test_get_product_invalid_include_expired_returns_400_with_error_shape(self):
-        """Invalid include_expired returns 400 with error.message and error.details."""
+    def test_get_product_invalid_include_expired_returns_400_with_error_shape(
+        self,
+    ):
+        """Invalid include_expired returns 400 with error fields."""
         response = self.client.get(
             "/products/test-product?include_expired=not-a-bool"
         )
