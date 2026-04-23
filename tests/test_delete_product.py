@@ -39,7 +39,9 @@ class TestDeleteProduct(BaseTestCase):
         response = self.client.delete("/products/test-product")
 
         self.assertEqual(response.status_code, 200)
-        self.assertIsNone(Product.query.filter_by(slug="test-product").one_or_none())
+        self.assertIsNone(
+            Product.query.filter_by(slug="test-product").one_or_none()
+        )
         self.assertIsNone(
             Deployment.query.filter_by(
                 parent_product="test-product",

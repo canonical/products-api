@@ -203,9 +203,9 @@ def create_product_deployment(product_slug, name, artifact_type):
         name=name,
         artifact_type=artifact_type,
     )
-    db.session.add(deployment)
 
     try:
+        db.session.add(deployment)
         db.session.commit()
     except Exception:
         db.session.remove()
@@ -289,9 +289,9 @@ def create_version(
         compatible_ubuntu_lts=compatible_ubuntu_lts,
         is_hidden=is_hidden,
     )
-    db.session.add(version)
 
     try:
+        db.session.add(version)
         db.session.commit()
     except Exception:
         db.session.remove()
@@ -354,8 +354,8 @@ def delete_product(product_slug):
         "name": product.name,
     }
 
-    db.session.delete(product)
     try:
+        db.session.delete(product)
         db.session.commit()
     except Exception:
         db.session.remove()
