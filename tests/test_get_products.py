@@ -12,7 +12,7 @@ class TestGetProducts(BaseTestCase):
         self.assertEqual(response.status_code, 200)
 
     def test_get_products_response_shape(self):
-        """Response contains a products key with nested deployments and versions."""
+        """Response contains products with nested deployments and versions."""
         response = self.client.get("/products")
         payload = response.get_json()
 
@@ -31,7 +31,7 @@ class TestGetProducts(BaseTestCase):
         self.assertGreaterEqual(len(deployment["versions"]), 1)
 
     def test_get_products_excludes_expired_by_default(self):
-        """Products where all versions are expired are excluded when include_expired is omitted."""
+        """Products with only expired versions are excluded by default."""
         _add_product_with_version(
             self.db,
             "expired-default",
@@ -70,7 +70,7 @@ class TestGetProducts(BaseTestCase):
         self.assertIn("expired-true", slugs)
 
     def test_get_products_notes_with_until_not_filtered(self):
-        """A version with notes containing 'until' is treated as active and not filtered out."""
+        """Notes containing 'until' are treated as active."""
         _add_product_with_version(
             self.db,
             "notes-until",
@@ -89,7 +89,7 @@ class TestGetProducts(BaseTestCase):
         self.assertIn("notes-until", slugs)
 
     def test_get_products_notes_without_until_filtered(self):
-        """A version with notes not containing 'until' and no date is treated as expired."""
+        """Notes without 'until' and no date are treated as expired."""
         _add_product_with_version(
             self.db,
             "notes-no-until",
@@ -148,7 +148,7 @@ class TestGetProducts(BaseTestCase):
         self.assertIn("hidden-included", slugs)
 
     def test_get_products_invalid_include_expired_returns_400(self):
-        """An invalid include_expired value returns 400 with the correct error shape."""
+        """Invalid include_expired returns 400 with the error shape."""
         response = self.client.get("/products?include_expired=not-a-bool")
 
         self.assertEqual(response.status_code, 400)

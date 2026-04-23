@@ -5,7 +5,7 @@ from tests import BaseTestCase
 
 class TestGetProductDeploymentVersion(BaseTestCase):
     def test_get_product_deployment_version_returns_200(self):
-        """GET /products/<product_slug>/<deployment_slug>/<release> returns 200."""
+        """GET /products/<product_slug>/<deployment_slug>/<release> is 200."""
         response = self.client.get(
             "/products/test-product/test-deployment/1.0.0"
         )
@@ -13,7 +13,7 @@ class TestGetProductDeploymentVersion(BaseTestCase):
         self.assertEqual(response.status_code, 200)
 
     def test_get_product_deployment_version_response_shape(self):
-        """Response returns version details using current VersionSchema fields."""
+        """Response returns version details from VersionSchema fields."""
         response = self.client.get(
             "/products/test-product/test-deployment/1.0.0"
         )

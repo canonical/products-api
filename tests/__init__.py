@@ -10,7 +10,8 @@ from sqlalchemy_utils import create_database, database_exists
 
 if "TEST_DATABASE_URL" not in os.environ:
     raise RuntimeError(
-        "TEST_DATABASE_URL environment variable must be set before running tests."
+        "TEST_DATABASE_URL environment variable "
+        "must be set before running tests."
     )
 
 os.environ["DATABASE_URL"] = os.environ["TEST_DATABASE_URL"]

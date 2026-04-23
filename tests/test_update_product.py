@@ -5,7 +5,7 @@ from tests import BaseTestCase
 
 class TestPutProduct(BaseTestCase):
     def test_put_product_updates_name_and_returns_200(self):
-        """PUT /products/<product_slug> updates product name and returns 200."""
+        """PUT /products/<product_slug> updates product name and is 200."""
         response = self.client.put(
             "/products/test-product",
             json={"name": "Updated Product Name"},
@@ -32,7 +32,7 @@ class TestPutProduct(BaseTestCase):
         self.assertIn("name", payload["error"]["details"])
 
     def test_put_product_whitespace_only_name_returns_400(self):
-        """PUT /products/<product_slug> with whitespace-only name returns 400 with error.details."""
+        """PUT with whitespace-only product name returns 400."""
         response = self.client.put(
             "/products/test-product",
             json={"name": "   "},

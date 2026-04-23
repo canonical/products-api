@@ -492,3 +492,66 @@ def update_version(product_slug, deployment_slug, release, **data):
         }, 500
 
     return VersionSchema().dump(version), 200
+
+
+def delete_version(product_slug, deployment_slug, release):
+    product = Product.query.filter_by(slug=product_slug).one_or_none()
+    if product is None:
+        return {
+            "error": {
+                "message": "Product not found.",
+                "details": {"product_slug": product_slug},
+            }
+        }, 404
+
+    deployment = Deployment.query.filter_by(
+        parent_product=product_slug,
+        slug=deployment_slug,
+    ).one_or_none()
+    if deployment is None:
+        return {
+            "error": {
+                "message": "Deployment not found.",
+                "details": {
+                    "product_slug": product_slug,
+                    "deployment_slug": deployment_slug,
+                },
+            }
+        }, 404
+
+    version = Version.query.filter_by(
+        parent_product=product_slug,
+        parent_deployment=deployment_slug,
+        release=release,
+    ).one_or_none()
+    if version is None:
+        return {
+            "error": {
+                "message": "Version not found.",
+                "details": {
+                    "product_slug": product_slug,
+                    "deployment_slug": deployment_slug,
+                    "release": release,
+                },
+            }
+        }, 404
+
+    deleted = {
+        "release": version.release,
+        "parent_deployment": version.parent_deployment,
+        "parent_product": version.parent_product,
+    }
+
+    try:
+        db.session.delete(version)
+        db.session.commit()
+    except Exception:
+        db.session.remove()
+        return {
+            "error": {
+                "message": "Internal server error.",
+                "details": {},
+            }
+        }, 500
+
+    return {"deleted": deleted}, 200

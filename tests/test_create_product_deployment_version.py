@@ -5,7 +5,7 @@ from tests import BaseTestCase
 
 class TestCreateProductDeploymentVersion(BaseTestCase):
     def test_create_product_deployment_version_returns_201(self):
-        """POST /products/<product_slug>/<deployment_slug> with valid body returns 201."""
+        """POST /products/<product_slug>/<deployment_slug> returns 201."""
         response = self.client.post(
             "/products/test-product/test-deployment",
             json={
@@ -34,8 +34,10 @@ class TestCreateProductDeploymentVersion(BaseTestCase):
         self.assertEqual(payload["architecture"], ["amd64"])
         self.assertEqual(payload["is_hidden"], False)
 
-    def test_create_product_deployment_version_hidden_excluded_by_default(self):
-        """A version created with is_hidden=True is excluded from GET by default."""
+    def test_create_product_deployment_version_hidden_excluded_by_default(
+        self,
+    ):
+        """A version with is_hidden=True is excluded from GET by default."""
         self.client.post(
             "/products/test-product/test-deployment",
             json={
@@ -56,8 +58,10 @@ class TestCreateProductDeploymentVersion(BaseTestCase):
         releases = [v["release"] for v in payload["versions"]]
         self.assertNotIn("hidden-1.0.0", releases)
 
-    def test_create_product_deployment_version_hidden_included_with_param(self):
-        """A version created with is_hidden=True is included when include_hidden=true."""
+    def test_create_product_deployment_version_hidden_included_with_param(
+        self,
+    ):
+        """A hidden version is included with include_hidden=true."""
         self.client.post(
             "/products/test-product/test-deployment",
             json={
@@ -101,7 +105,9 @@ class TestCreateProductDeploymentVersion(BaseTestCase):
         self.assertEqual(payload["error"]["message"], "Invalid request.")
         self.assertIn("details", payload["error"])
 
-    def test_create_product_deployment_version_missing_release_returns_400(self):
+    def test_create_product_deployment_version_missing_release_returns_400(
+        self,
+    ):
         """POST without release returns 400 with error.details."""
         response = self.client.post(
             "/products/test-product/test-deployment",
@@ -120,7 +126,9 @@ class TestCreateProductDeploymentVersion(BaseTestCase):
         self.assertIn("error", payload)
         self.assertIn("details", payload["error"])
 
-    def test_create_product_deployment_version_whitespace_only_release_returns_400(self):
+    def test_create_product_deployment_version_whitespace_release_returns_400(
+        self,
+    ):
         """POST with whitespace-only release returns 400 with error.details."""
         response = self.client.post(
             "/products/test-product/test-deployment",
@@ -140,8 +148,10 @@ class TestCreateProductDeploymentVersion(BaseTestCase):
         self.assertIn("error", payload)
         self.assertIn("details", payload["error"])
 
-    def test_create_product_deployment_version_missing_required_field_returns_400(self):
-        """POST without a required lifecycle field returns 400 with error.details."""
+    def test_create_product_deployment_version_missing_field_returns_400(
+        self,
+    ):
+        """POST without a required lifecycle field returns 400."""
         response = self.client.post(
             "/products/test-product/test-deployment",
             json={
@@ -157,8 +167,10 @@ class TestCreateProductDeploymentVersion(BaseTestCase):
         self.assertIn("error", payload)
         self.assertIn("details", payload["error"])
 
-    def test_create_product_deployment_version_lifecycle_date_before_release_date_returns_400(self):
-        """POST with a lifecycle date before release_date returns 400 with field details."""
+    def test_create_version_lifecycle_before_release_returns_400(
+        self,
+    ):
+        """POST with lifecycle date before release_date returns 400."""
         response = self.client.post(
             "/products/test-product/test-deployment",
             json={
@@ -178,8 +190,10 @@ class TestCreateProductDeploymentVersion(BaseTestCase):
         self.assertIn("details", payload["error"])
         self.assertIn("supported", payload["error"]["details"])
 
-    def test_create_product_deployment_version_notes_only_lifecycle_not_checked_against_release_date(self):
-        """POST with notes-only lifecycle fields is not subject to date ordering validation."""
+    def test_create_version_notes_only_lifecycle_not_checked(
+        self,
+    ):
+        """POST with notes-only lifecycle fields skips date ordering checks."""
         response = self.client.post(
             "/products/test-product/test-deployment",
             json={
@@ -192,12 +206,12 @@ class TestCreateProductDeploymentVersion(BaseTestCase):
                 "legacy_supported": {"notes": "until further notice"},
             },
         )
-        payload = response.get_json()
-
         self.assertEqual(response.status_code, 201)
 
-    def test_create_product_deployment_version_invalid_date_format_returns_400(self):
-        """POST with an invalid date string in a DateOrNote field returns 400."""
+    def test_create_product_deployment_version_invalid_date_format_returns_400(
+        self,
+    ):
+        """POST with an invalid DateOrNote date string returns 400."""
         response = self.client.post(
             "/products/test-product/test-deployment",
             json={
@@ -216,7 +230,9 @@ class TestCreateProductDeploymentVersion(BaseTestCase):
         self.assertIn("error", payload)
         self.assertIn("details", payload["error"])
 
-    def test_create_product_deployment_version_product_not_found_returns_404(self):
+    def test_create_product_deployment_version_product_not_found_returns_404(
+        self,
+    ):
         """Unknown product returns 404 with identifying details."""
         response = self.client.post(
             "/products/does-not-exist/test-deployment",
@@ -240,7 +256,9 @@ class TestCreateProductDeploymentVersion(BaseTestCase):
             {"product_slug": "does-not-exist"},
         )
 
-    def test_create_product_deployment_version_deployment_not_found_returns_404(self):
+    def test_create_version_deployment_not_found_returns_404(
+        self,
+    ):
         """Unknown deployment returns 404 with identifying details."""
         response = self.client.post(
             "/products/test-product/does-not-exist",
@@ -285,7 +303,9 @@ class TestCreateProductDeploymentVersion(BaseTestCase):
 
         self.assertEqual(response.status_code, 409)
         self.assertIn("error", payload)
-        self.assertEqual(payload["error"]["message"], "Version already exists.")
+        self.assertEqual(
+            payload["error"]["message"], "Version already exists."
+        )
         self.assertEqual(
             payload["error"]["details"],
             {

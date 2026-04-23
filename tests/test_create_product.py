@@ -84,7 +84,7 @@ class TestCreateProduct(BaseTestCase):
         self.assertIn("error", payload)
 
     def test_create_product_duplicate_slug_returns_409(self):
-        """POST /products with a name that generates an existing slug returns 409."""
+        """POST /products with an existing slug returns 409."""
         response = self.client.post(
             "/products",
             json={
@@ -130,7 +130,7 @@ class TestCreateProduct(BaseTestCase):
         self.assertIn("details", payload["error"])
 
     def test_create_product_whitespace_only_name_returns_400(self):
-        """POST /products with a whitespace-only name returns 400 with error.details."""
+        """POST /products with whitespace-only name returns 400."""
         response = self.client.post(
             "/products",
             json={
@@ -169,7 +169,7 @@ class TestCreateProduct(BaseTestCase):
         self.assertEqual(payload["name"], "etcd")
 
     def test_create_product_missing_deployments_key_returns_400(self):
-        """POST /products with deployments key omitted entirely returns 400 with error.details."""
+        """POST /products with deployments key omitted returns 400."""
         response = self.client.post(
             "/products",
             json={
@@ -202,7 +202,7 @@ class TestCreateProduct(BaseTestCase):
         self.assertEqual(payload["slug"], "charmed-ceph")
 
     def test_create_product_duplicate_deployment_names_returns_400(self):
-        """POST /products with duplicate deployment names returns 400 with error.details."""
+        """POST /products with duplicate deployment names returns 400."""
         response = self.client.post(
             "/products",
             json={

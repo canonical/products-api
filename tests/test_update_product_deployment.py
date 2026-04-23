@@ -4,8 +4,10 @@ from tests import BaseTestCase
 
 
 class TestUpdateProductDeployment(BaseTestCase):
-    def test_update_product_deployment_updates_both_fields_and_returns_200(self):
-        """PUT updates deployment name and artifact_type and keeps slug unchanged."""
+    def test_update_product_deployment_updates_both_fields_and_returns_200(
+        self,
+    ):
+        """PUT updates deployment name/artifact_type and keeps slug."""
         response = self.client.put(
             "/products/test-product/test-deployment",
             json={
