@@ -56,9 +56,7 @@ class TestDeleteProductDeployment(BaseTestCase):
 
     def test_delete_product_deployment_not_found_returns_404(self):
         """Unknown deployment returns 404 with identifying details."""
-        response = self.client.delete(
-            "/products/test-product/does-not-exist"
-        )
+        response = self.client.delete("/products/test-product/does-not-exist")
         payload = response.get_json()
 
         self.assertEqual(response.status_code, 404)
@@ -74,9 +72,7 @@ class TestDeleteProductDeployment(BaseTestCase):
 
     def test_delete_product_deployment_last_remaining_returns_400(self):
         """Deleting the last deployment returns 400 and does not delete it."""
-        response = self.client.delete(
-            "/products/test-product/test-deployment"
-        )
+        response = self.client.delete("/products/test-product/test-deployment")
         payload = response.get_json()
 
         self.assertEqual(response.status_code, 400)
@@ -87,9 +83,7 @@ class TestDeleteProductDeployment(BaseTestCase):
         )
         self.assertEqual(
             payload["error"]["details"],
-            {
-                "reason": ("Products must have at least one deployment.")
-            },
+            {"reason": ("Products must have at least one deployment.")},
         )
         self.assertIsNotNone(
             Deployment.query.filter_by(
@@ -98,8 +92,13 @@ class TestDeleteProductDeployment(BaseTestCase):
             ).one_or_none()
         )
 
-    def test_delete_product_deployment_cascades_versions_only_for_deleted_deployment(self):
-        """Deleting one deployment removes its versions and keeps the product and other deployment."""
+    def test_delete_product_deployment_cascades_versions_for_deleted(
+        self,
+    ):
+        """
+        Deleting one deployment removes its versions and keeps the product
+        and other deployment.
+        """
         product = self.models["product"]
         second_deployment = make_deployment(
             product,
@@ -133,7 +132,9 @@ class TestDeleteProductDeployment(BaseTestCase):
                 release="2.0.0",
             ).one_or_none()
         )
-        self.assertIsNotNone(Product.query.filter_by(slug="test-product").one_or_none())
+        self.assertIsNotNone(
+            Product.query.filter_by(slug="test-product").one_or_none()
+        )
         self.assertIsNotNone(
             Deployment.query.filter_by(
                 parent_product="test-product",

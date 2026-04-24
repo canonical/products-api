@@ -426,8 +426,8 @@ def update_product_deployment(
 
 def delete_product_deployment(product_slug, deployment_slug):
     product = (
-        Product.query.options(joinedload(Product.deployments))
-        .filter_by(slug=product_slug)
+        Product.query.filter_by(slug=product_slug)
+        .with_for_update()
         .one_or_none()
     )
     if product is None:
@@ -453,7 +453,11 @@ def delete_product_deployment(product_slug, deployment_slug):
             }
         }, 404
 
-    if len(product.deployments) <= 1:
+    deployment_count = Deployment.query.filter_by(
+        parent_product=product_slug
+    ).count()
+
+    if deployment_count <= 1:
         return {
             "error": {
                 "message": "Cannot delete the last deployment.",
