@@ -61,6 +61,11 @@ app.add_url_rule(
 )
 app.add_url_rule(
     "/products/<string:product_slug>/<string:deployment_slug>",
+    view_func=views.delete_product_deployment,
+    methods=["DELETE"],
+)
+app.add_url_rule(
+    "/products/<string:product_slug>/<string:deployment_slug>",
     view_func=views.create_version,
     methods=["POST"],
 )
