@@ -203,9 +203,9 @@ def create_product_deployment(product_slug, name, artifact_type):
         name=name,
         artifact_type=artifact_type,
     )
-    db.session.add(deployment)
 
     try:
+        db.session.add(deployment)
         db.session.commit()
     except Exception:
         db.session.remove()
@@ -289,9 +289,9 @@ def create_version(
         compatible_ubuntu_lts=compatible_ubuntu_lts,
         is_hidden=is_hidden,
     )
-    db.session.add(version)
 
     try:
+        db.session.add(version)
         db.session.commit()
     except Exception:
         db.session.remove()
@@ -336,6 +336,37 @@ def update_product(product_slug, name):
         }, 500
 
     return ProductSchema().dump(product), 200
+
+
+def delete_product(product_slug):
+    product = Product.query.filter_by(slug=product_slug).one_or_none()
+
+    if product is None:
+        return {
+            "error": {
+                "message": "Product not found.",
+                "details": {"product_slug": product_slug},
+            }
+        }, 404
+
+    deleted = {
+        "slug": product.slug,
+        "name": product.name,
+    }
+
+    try:
+        db.session.delete(product)
+        db.session.commit()
+    except Exception:
+        db.session.remove()
+        return {
+            "error": {
+                "message": "Internal server error.",
+                "details": {},
+            }
+        }, 500
+
+    return {"deleted": deleted}, 200
 
 
 @use_kwargs(UpdateProductDeploymentBodySchema, location="json")
