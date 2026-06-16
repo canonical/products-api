@@ -232,6 +232,7 @@ def create_version(
     legacy_supported,
     upgrade_path=None,
     compatible_ubuntu_lts=None,
+    compliance=None,
     is_hidden=False,
 ):
     product = Product.query.filter_by(slug=product_slug).one_or_none()
@@ -287,6 +288,7 @@ def create_version(
         legacy_supported=legacy_supported,
         upgrade_path=upgrade_path,
         compatible_ubuntu_lts=compatible_ubuntu_lts,
+        compliance=compliance,
         is_hidden=is_hidden,
     )
 

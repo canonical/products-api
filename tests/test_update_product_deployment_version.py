@@ -55,6 +55,60 @@ class TestUpdateProductDeploymentVersion(BaseTestCase):
         )
         self.assertEqual(payload["is_hidden"], True)
 
+    def test_update_product_deployment_version_compliance_updates(self):
+        """PUT can update the compliance field and returns it in payload."""
+        response = self.client.put(
+            "/products/test-product/test-deployment/1.0.0",
+            json={
+                "compliance": [
+                    {"framework": "FIPS 140-2", "status": "Achieved"},
+                    {"framework": "CIS", "status": "Expired"},
+                ],
+            },
+        )
+        payload = response.get_json()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            payload["compliance"],
+            [
+                {"framework": "FIPS 140-2", "status": "Achieved"},
+                {"framework": "CIS", "status": "Expired"},
+            ],
+        )
+
+    def test_update_version_invalid_compliance_framework_returns_400(self):
+        """PUT with an unknown compliance framework returns 400."""
+        response = self.client.put(
+            "/products/test-product/test-deployment/1.0.0",
+            json={
+                "compliance": [
+                    {"framework": "not-a-framework", "status": "Achieved"},
+                ],
+            },
+        )
+        payload = response.get_json()
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("error", payload)
+        self.assertIn("details", payload["error"])
+
+    def test_update_version_invalid_compliance_status_returns_400(self):
+        """PUT with an unknown compliance status returns 400."""
+        response = self.client.put(
+            "/products/test-product/test-deployment/1.0.0",
+            json={
+                "compliance": [
+                    {"framework": "CIS", "status": "not-a-status"},
+                ],
+            },
+        )
+        payload = response.get_json()
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("error", payload)
+        self.assertIn("details", payload["error"])
+
     def test_update_product_deployment_version_single_field_updates(self):
         """PUT can update a single field without requiring other fields."""
         response = self.client.put(

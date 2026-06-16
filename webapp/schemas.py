@@ -10,7 +10,12 @@ from marshmallow import (
 )
 from marshmallow.validate import OneOf, Length
 
-from webapp.constants import ARTIFACT_TYPES, ARCHITECTURES
+from webapp.constants import (
+    ARTIFACT_TYPES,
+    ARCHITECTURES,
+    COMPLIANCE_FRAMEWORKS,
+    COMPLIANCE_STATUSES,
+)
 
 
 class NormalizeNameMixin:
@@ -61,6 +66,15 @@ class CompatibleLTSSchema(Schema):
     )
 
 
+class ComplianceSchema(Schema):
+    """Compliance framework status for a release."""
+
+    framework = fields.String(
+        required=True, validate=OneOf(COMPLIANCE_FRAMEWORKS)
+    )
+    status = fields.String(required=True, validate=OneOf(COMPLIANCE_STATUSES))
+
+
 class ProductSchema(Schema):
     """Schema for Product model."""
 
@@ -109,6 +123,11 @@ class VersionSchema(Schema):
     )
     compatible_ubuntu_lts = fields.List(
         fields.Nested(CompatibleLTSSchema),
+        required=False,
+        allow_none=True,
+    )
+    compliance = fields.List(
+        fields.Nested(ComplianceSchema),
         required=False,
         allow_none=True,
     )
@@ -182,6 +201,11 @@ class CreateVersionBodySchema(Schema):
     )
     compatible_ubuntu_lts = fields.List(
         fields.Nested(CompatibleLTSSchema),
+        required=False,
+        allow_none=True,
+    )
+    compliance = fields.List(
+        fields.Nested(ComplianceSchema),
         required=False,
         allow_none=True,
     )
@@ -273,6 +297,11 @@ class UpdateVersionBodySchema(Schema):
         required=False,
         allow_none=True,
     )
+    compliance = fields.List(
+        fields.Nested(ComplianceSchema),
+        required=False,
+        allow_none=True,
+    )
     is_hidden = fields.Boolean(required=False)
 
     @validates_schema
@@ -286,6 +315,7 @@ class UpdateVersionBodySchema(Schema):
             "legacy_supported",
             "upgrade_path",
             "compatible_ubuntu_lts",
+            "compliance",
             "is_hidden",
         ]
         if not any(field in data for field in updatable_fields):

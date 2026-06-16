@@ -39,6 +39,7 @@ def make_version(product, deployment, **overrides):
         "legacy_supported": future_date,
         "upgrade_path": None,
         "compatible_ubuntu_lts": None,
+        "compliance": None,
         "is_hidden": False,
     }
     return Version(**{**defaults, **overrides})
