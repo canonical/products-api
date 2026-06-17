@@ -119,9 +119,7 @@ class TestCreateProductDeploymentVersion(BaseTestCase):
             ],
         )
 
-    def test_create_product_deployment_version_invalid_compliance_framework_returns_400(  # noqa: E501
-        self,
-    ):
+    def test_create_version_invalid_compliance_framework_returns_400(self):
         """POST with an unknown compliance framework returns 400."""
         response = self.client.post(
             "/products/test-product/test-deployment",
