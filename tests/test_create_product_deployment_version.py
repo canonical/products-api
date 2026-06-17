@@ -142,9 +142,7 @@ class TestCreateProductDeploymentVersion(BaseTestCase):
         self.assertIn("error", payload)
         self.assertIn("details", payload["error"])
 
-    def test_create_product_deployment_version_invalid_compliance_status_returns_400(  # noqa: E501
-        self,
-    ):
+    def test_create_version_invalid_compliance_status_returns_400(self):
         """POST with an unknown compliance status returns 400."""
         response = self.client.post(
             "/products/test-product/test-deployment",
