@@ -1,0 +1,25 @@
+name: products-api
+base: bare
+build-base: ubuntu@24.04
+version: "0.1" # just for humans. Semantic versioning is recommended
+summary: REST API for Canonical product, deployment and version metadata
+description: |
+  products-api is a Flask REST API that stores and serves Canonical product,
+  deployment, and version metadata, backed by PostgreSQL.
+platforms:
+  amd64:
+
+extensions:
+  - flask-framework
+
+parts:
+  flask-framework/install-app:
+    prime:
+      # A Flask prime override fully replaces the default file list. Application
+      # code is under webapp/ (not app/), so it must be listed explicitly, along
+      # with the migration entrypoint and Alembic assets.
+      - flask/app/app.py
+      - flask/app/webapp
+      - flask/app/migrations
+      - flask/app/migrate.sh
+      - flask/app/alembic.ini
