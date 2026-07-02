@@ -165,6 +165,32 @@ class TestCreateProductDeploymentVersion(BaseTestCase):
         self.assertIn("error", payload)
         self.assertIn("details", payload["error"])
 
+    def test_create_product_deployment_version_duplicate_compliance_framework_returns_400(  # noqa: E501
+        self,
+    ):
+        """POST with duplicate compliance frameworks returns 400."""
+        response = self.client.post(
+            "/products/test-product/test-deployment",
+            json={
+                "release": "2.0.8",
+                "architecture": ["amd64"],
+                "release_date": {"date": "2026-01-01"},
+                "supported": {"date": "2026-12-31"},
+                "esm_pro_supported": {"date": "2027-12-31"},
+                "break_bug_pro_supported": {"date": "2028-12-31"},
+                "legacy_supported": {"notes": "until further notice"},
+                "compliance": [
+                    {"framework": "CIS", "status": "Achieved"},
+                    {"framework": "CIS", "status": "Expired"},
+                ],
+            },
+        )
+        payload = response.get_json()
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("error", payload)
+        self.assertIn("compliance", payload["error"]["details"])
+
     def test_create_product_deployment_version_invalid_body_returns_400(self):
         """Invalid request body returns 400 with error details."""
         response = self.client.post(

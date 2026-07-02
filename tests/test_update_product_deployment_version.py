@@ -109,6 +109,23 @@ class TestUpdateProductDeploymentVersion(BaseTestCase):
         self.assertIn("error", payload)
         self.assertIn("details", payload["error"])
 
+    def test_update_version_duplicate_compliance_framework_returns_400(self):
+        """PUT with duplicate compliance frameworks returns 400."""
+        response = self.client.put(
+            "/products/test-product/test-deployment/1.0.0",
+            json={
+                "compliance": [
+                    {"framework": "CIS", "status": "Achieved"},
+                    {"framework": "CIS", "status": "Expired"},
+                ],
+            },
+        )
+        payload = response.get_json()
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("error", payload)
+        self.assertIn("compliance", payload["error"]["details"])
+
     def test_update_product_deployment_version_single_field_updates(self):
         """PUT can update a single field without requiring other fields."""
         response = self.client.put(
