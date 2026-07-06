@@ -84,6 +84,113 @@ class TestCreateProductDeploymentVersion(BaseTestCase):
         releases = [v["release"] for v in payload["versions"]]
         self.assertIn("hidden-2.0.0", releases)
 
+    def test_create_product_deployment_version_with_compliance_returns_201(
+        self,
+    ):
+        """POST with compliance entries returns 201 with compliance data."""
+        response = self.client.post(
+            "/products/test-product/test-deployment",
+            json={
+                "release": "2.0.5",
+                "architecture": ["amd64"],
+                "release_date": {"date": "2026-01-01"},
+                "supported": {"date": "2026-12-31"},
+                "esm_pro_supported": {"date": "2027-12-31"},
+                "break_bug_pro_supported": {"date": "2028-12-31"},
+                "legacy_supported": {"notes": "until further notice"},
+                "compliance": [
+                    {"framework": "FIPS 140-2", "status": "Achieved"},
+                    {"framework": "FIPS 140-3", "status": "Planned"},
+                    {"framework": "DISA-STIG", "status": "NA"},
+                    {"framework": "CIS", "status": "Pending"},
+                ],
+            },
+        )
+        payload = response.get_json()
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(
+            payload["compliance"],
+            [
+                {"framework": "FIPS 140-2", "status": "Achieved"},
+                {"framework": "FIPS 140-3", "status": "Planned"},
+                {"framework": "DISA-STIG", "status": "NA"},
+                {"framework": "CIS", "status": "Pending"},
+            ],
+        )
+
+    def test_create_version_invalid_compliance_framework_returns_400(self):
+        """POST with an unknown compliance framework returns 400."""
+        response = self.client.post(
+            "/products/test-product/test-deployment",
+            json={
+                "release": "2.0.6",
+                "architecture": ["amd64"],
+                "release_date": {"date": "2026-01-01"},
+                "supported": {"date": "2026-12-31"},
+                "esm_pro_supported": {"date": "2027-12-31"},
+                "break_bug_pro_supported": {"date": "2028-12-31"},
+                "legacy_supported": {"notes": "until further notice"},
+                "compliance": [
+                    {"framework": "not-a-framework", "status": "Achieved"},
+                ],
+            },
+        )
+        payload = response.get_json()
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("error", payload)
+        self.assertIn("details", payload["error"])
+
+    def test_create_version_invalid_compliance_status_returns_400(self):
+        """POST with an unknown compliance status returns 400."""
+        response = self.client.post(
+            "/products/test-product/test-deployment",
+            json={
+                "release": "2.0.7",
+                "architecture": ["amd64"],
+                "release_date": {"date": "2026-01-01"},
+                "supported": {"date": "2026-12-31"},
+                "esm_pro_supported": {"date": "2027-12-31"},
+                "break_bug_pro_supported": {"date": "2028-12-31"},
+                "legacy_supported": {"notes": "until further notice"},
+                "compliance": [
+                    {"framework": "CIS", "status": "not-a-status"},
+                ],
+            },
+        )
+        payload = response.get_json()
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("error", payload)
+        self.assertIn("details", payload["error"])
+
+    def test_create_product_deployment_version_duplicate_compliance_framework_returns_400(  # noqa: E501
+        self,
+    ):
+        """POST with duplicate compliance frameworks returns 400."""
+        response = self.client.post(
+            "/products/test-product/test-deployment",
+            json={
+                "release": "2.0.8",
+                "architecture": ["amd64"],
+                "release_date": {"date": "2026-01-01"},
+                "supported": {"date": "2026-12-31"},
+                "esm_pro_supported": {"date": "2027-12-31"},
+                "break_bug_pro_supported": {"date": "2028-12-31"},
+                "legacy_supported": {"notes": "until further notice"},
+                "compliance": [
+                    {"framework": "CIS", "status": "Achieved"},
+                    {"framework": "CIS", "status": "Expired"},
+                ],
+            },
+        )
+        payload = response.get_json()
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("error", payload)
+        self.assertIn("compliance", payload["error"]["details"])
+
     def test_create_product_deployment_version_invalid_body_returns_400(self):
         """Invalid request body returns 400 with error details."""
         response = self.client.post(

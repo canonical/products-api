@@ -74,6 +74,7 @@ class Version(db.Model):
     legacy_supported = db.Column(db.JSON, nullable=False)
     upgrade_path = db.Column(db.JSON, nullable=True)
     compatible_ubuntu_lts = db.Column(db.JSON, nullable=True)
+    compliance = db.Column(db.JSON, nullable=True)
     is_hidden = db.Column(db.Boolean, nullable=False, default=False)
 
     deployment = db.relationship("Deployment", back_populates="versions")

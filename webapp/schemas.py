@@ -10,7 +10,12 @@ from marshmallow import (
 )
 from marshmallow.validate import OneOf, Length
 
-from webapp.constants import ARTIFACT_TYPES, ARCHITECTURES
+from webapp.constants import (
+    ARTIFACT_TYPES,
+    ARCHITECTURES,
+    COMPLIANCE_FRAMEWORKS,
+    COMPLIANCE_STATUSES,
+)
 
 
 class NormalizeNameMixin:
@@ -25,6 +30,20 @@ class NormalizeNameMixin:
                 )
             data["name"] = stripped_name
         return data
+
+
+class UniqueComplianceFrameworksMixin:
+    @validates_schema
+    def validate_unique_compliance_frameworks(self, data, **kwargs):
+        compliance = data.get("compliance") or []
+        frameworks = [
+            entry["framework"] for entry in compliance if "framework" in entry
+        ]
+        if len(frameworks) != len(set(frameworks)):
+            raise ValidationError(
+                "Duplicate frameworks are not allowed.",
+                field_name="compliance",
+            )
 
 
 class DateOrNoteSchema(Schema):
@@ -59,6 +78,15 @@ class CompatibleLTSSchema(Schema):
     compatible_components = fields.List(
         fields.String(), required=True, allow_none=False
     )
+
+
+class ComplianceSchema(Schema):
+    """Compliance framework status for a release."""
+
+    framework = fields.String(
+        required=True, validate=OneOf(COMPLIANCE_FRAMEWORKS)
+    )
+    status = fields.String(required=True, validate=OneOf(COMPLIANCE_STATUSES))
 
 
 class ProductSchema(Schema):
@@ -112,6 +140,11 @@ class VersionSchema(Schema):
         required=False,
         allow_none=True,
     )
+    compliance = fields.List(
+        fields.Nested(ComplianceSchema),
+        required=False,
+        allow_none=True,
+    )
     is_hidden = fields.Boolean(dump_only=False, load_default=False)
 
 
@@ -160,7 +193,7 @@ class CreateProductDeploymentBodySchema(NormalizeNameMixin, Schema):
     )
 
 
-class CreateVersionBodySchema(Schema):
+class CreateVersionBodySchema(UniqueComplianceFrameworksMixin, Schema):
     """
     Schema for POST /products/<product_slug>/<deployment_slug> request body.
     """
@@ -182,6 +215,11 @@ class CreateVersionBodySchema(Schema):
     )
     compatible_ubuntu_lts = fields.List(
         fields.Nested(CompatibleLTSSchema),
+        required=False,
+        allow_none=True,
+    )
+    compliance = fields.List(
+        fields.Nested(ComplianceSchema),
         required=False,
         allow_none=True,
     )
@@ -248,7 +286,7 @@ class UpdateProductDeploymentBodySchema(NormalizeNameMixin, Schema):
             )
 
 
-class UpdateVersionBodySchema(Schema):
+class UpdateVersionBodySchema(UniqueComplianceFrameworksMixin, Schema):
     """
     Schema for PUT /products/<product_slug>/<deployment_slug>/<release>
     request body.
@@ -273,6 +311,11 @@ class UpdateVersionBodySchema(Schema):
         required=False,
         allow_none=True,
     )
+    compliance = fields.List(
+        fields.Nested(ComplianceSchema),
+        required=False,
+        allow_none=True,
+    )
     is_hidden = fields.Boolean(required=False)
 
     @validates_schema
@@ -286,6 +329,7 @@ class UpdateVersionBodySchema(Schema):
             "legacy_supported",
             "upgrade_path",
             "compatible_ubuntu_lts",
+            "compliance",
             "is_hidden",
         ]
         if not any(field in data for field in updatable_fields):
