@@ -32,6 +32,20 @@ class NormalizeNameMixin:
         return data
 
 
+class UniqueComplianceFrameworksMixin:
+    @validates_schema
+    def validate_unique_compliance_frameworks(self, data, **kwargs):
+        compliance = data.get("compliance") or []
+        frameworks = [
+            entry["framework"] for entry in compliance if "framework" in entry
+        ]
+        if len(frameworks) != len(set(frameworks)):
+            raise ValidationError(
+                "Duplicate frameworks are not allowed.",
+                field_name="compliance",
+            )
+
+
 class DateOrNoteSchema(Schema):
     """DateOrNote support lifecycle field."""
 
@@ -179,7 +193,7 @@ class CreateProductDeploymentBodySchema(NormalizeNameMixin, Schema):
     )
 
 
-class CreateVersionBodySchema(Schema):
+class CreateVersionBodySchema(UniqueComplianceFrameworksMixin, Schema):
     """
     Schema for POST /products/<product_slug>/<deployment_slug> request body.
     """
@@ -222,18 +236,6 @@ class CreateVersionBodySchema(Schema):
                 )
             data["release"] = stripped_release
         return data
-
-    @validates_schema
-    def validate_unique_compliance_frameworks(self, data, **kwargs):
-        compliance = data.get("compliance") or []
-        frameworks = [
-            entry["framework"] for entry in compliance if "framework" in entry
-        ]
-        if len(frameworks) != len(set(frameworks)):
-            raise ValidationError(
-                "Duplicate frameworks are not allowed.",
-                field_name="compliance",
-            )
 
     @validates_schema
     def validate_dates_after_release(self, data, **kwargs):
@@ -284,7 +286,7 @@ class UpdateProductDeploymentBodySchema(NormalizeNameMixin, Schema):
             )
 
 
-class UpdateVersionBodySchema(Schema):
+class UpdateVersionBodySchema(UniqueComplianceFrameworksMixin, Schema):
     """
     Schema for PUT /products/<product_slug>/<deployment_slug>/<release>
     request body.
@@ -315,18 +317,6 @@ class UpdateVersionBodySchema(Schema):
         allow_none=True,
     )
     is_hidden = fields.Boolean(required=False)
-
-    @validates_schema
-    def validate_unique_compliance_frameworks(self, data, **kwargs):
-        compliance = data.get("compliance") or []
-        frameworks = [
-            entry["framework"] for entry in compliance if "framework" in entry
-        ]
-        if len(frameworks) != len(set(frameworks)):
-            raise ValidationError(
-                "Duplicate frameworks are not allowed.",
-                field_name="compliance",
-            )
 
     @validates_schema
     def validate_at_least_one_field(self, data, **kwargs):
