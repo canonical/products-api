@@ -1,0 +1,62 @@
+# Packs the rock and the charm
+#
+# Only the packing jobs are included for now. The deploy jobs (publish the rock
+# to a registry and `juju deploy`/`refresh` the charm) will be added in a
+# follow-up PR once PS7 resources are provisioned by IS.
+#
+# NOTE: when deploy jobs are added here, gate them to the default branch
+# (e.g. `if: github.ref == 'refs/heads/main'`) so they never run from forks/PRs.
+
+name: Pack
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  pack-rock:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up LXD
+        uses: canonical/setup-lxd@main
+
+      - name: Set up Rockcraft
+        run: sudo snap install rockcraft --classic --channel=latest/stable
+
+      - name: Pack rock
+        run: rockcraft pack -v
+
+      - name: Upload rock artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: products-api-rock
+          path: "*.rock"
+          if-no-files-found: error
+
+  pack-charm:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up LXD
+        uses: canonical/setup-lxd@main
+
+      - name: Set up Charmcraft
+        run: sudo snap install charmcraft --classic --channel=latest/stable
+
+      - name: Pack charm
+        working-directory: charm
+        run: charmcraft pack -v
+
+      - name: Upload charm artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: products-api-charm
+          path: "charm/*.charm"
+          if-no-files-found: error

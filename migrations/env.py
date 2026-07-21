@@ -1,5 +1,4 @@
 from logging.config import fileConfig
-import os
 import sys
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
@@ -23,10 +22,13 @@ if config.config_file_name is not None:
         # Logging setup is non-critical so we skip it rather than block migrations.
         pass
 
-# Set SQLAlchemy URL from Flask config or environment
-db_url = os.environ.get("DATABASE_URL", app.config.get("SQLALCHEMY_DATABASE_URI"))
+# Resolve the database URL from the Flask app config. webapp/app.py already
+# bridges DATABASE_URL (local/dotrun) and the charm-injected
+# POSTGRESQL_DB_CONNECT_STRING, so we reuse that single source here instead of
+# reading os.environ directly.
+db_url = app.config.get("SQLALCHEMY_DATABASE_URI")
 if not db_url:
-    raise RuntimeError("DATABASE_URL must be set for migrations.")
+    raise RuntimeError("No database URL configured for migrations.")
 config.set_main_option("sqlalchemy.url", db_url)
 
 # add your model's MetaData object here

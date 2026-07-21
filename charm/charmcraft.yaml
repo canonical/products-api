@@ -1,0 +1,26 @@
+name: products-api
+
+type: charm
+
+base: ubuntu@24.04
+
+platforms:
+  amd64:
+
+# (Required)
+summary: REST API for Canonical product, deployment and version metadata
+
+# (Required)
+description: |
+  products-api is a Flask REST API that stores and serves Canonical product,
+  deployment, and version metadata, backed by PostgreSQL.
+
+extensions:
+  - flask-framework
+
+# products-api requires a PostgreSQL database; block until it is integrated.
+requires:
+  postgresql:
+    interface: postgresql_client
+    optional: false
+    limit: 1

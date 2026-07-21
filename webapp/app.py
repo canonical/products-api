@@ -9,7 +9,12 @@ app = FlaskBase(__name__, "products-api")
 app.json.sort_keys = False
 
 # Database Configuration
-app.config["SQLALCHEMY_DATABASE_URI"] = get_flask_env("DATABASE_URL")
+# When deployed via the 12-factor charm, paas-charm's PostgreSQL integration
+# injects POSTGRESQL_DB_CONNECT_STRING. Fall back to it so the same code runs
+# unchanged under local/dotrun (DATABASE_URL) and the charm runtime.
+app.config["SQLALCHEMY_DATABASE_URI"] = get_flask_env(
+    "DATABASE_URL"
+) or get_flask_env("POSTGRESQL_DB_CONNECT_STRING")
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 # API Documentation
