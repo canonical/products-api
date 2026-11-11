@@ -15,6 +15,7 @@ if "TEST_DATABASE_URL" not in os.environ:
     )
 
 os.environ["DATABASE_URL"] = os.environ["TEST_DATABASE_URL"]
+os.environ["FLASK_DISABLE_AUTH_FOR_TESTS"] = "1"
 
 from tests.fixtures.models import make_models  # noqa: E402
 from webapp.app import app, db  # noqa: E402

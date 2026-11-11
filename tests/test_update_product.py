@@ -17,6 +17,16 @@ class TestPutProduct(BaseTestCase):
         self.assertEqual(payload["name"], "Updated Product Name")
         self.assertIn("deployments", payload)
 
+    def test_put_product_sets_owner_launchpad_team(self):
+        """PUT with owner_launchpad_team updates the product owner."""
+        response = self.client.put(
+            "/products/test-product",
+            json={"name": "Test Product", "owner_launchpad_team": "owners"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["owner_launchpad_team"], "owners")
+
     def test_put_product_invalid_body_returns_400(self):
         """Missing name in body returns 400 with existing error shape."""
         response = self.client.put(

@@ -3,7 +3,21 @@ from datetime import date
 from types import SimpleNamespace
 from typing import Any
 
+import requests
+from canonicalwebteam.flask_base.env import get_flask_env
+
 ACTIVE_KEYWORDS = ["until"]
+DIRECTORY_API_URL = "https://api.directory.canonical.com/graphql/"
+DIRECTORY_EMPLOYEE_FIELDS = (
+    "id",
+    "name",
+    "email",
+    "team",
+    "department",
+    "jobTitle",
+    "mattermost",
+    "launchpadId",
+)
 
 
 def slugify(name: str) -> str:
@@ -156,3 +170,51 @@ def validate_dates_after_release(
         if lifecycle_date < release_date:
             return {field_name: ["Must not be before release_date."]}
     return {}
+
+
+class DirectoryAPIError(Exception):
+    """Raised when the directory API cannot be queried."""
+
+
+def get_user_from_directory_by_key(key=None, value=None) -> list[dict]:
+    """Query the directory API for employees.
+
+    With neither `key` nor `value`, return all employees. Otherwise,
+    return employees whose `key` field contains `value`.
+    """
+    fields = "\n".join(DIRECTORY_EMPLOYEE_FIELDS)
+    if not key and not value:
+        query = "query { employees { %s } }" % fields
+        variables = {}
+    elif key and value:
+        # `key` is interpolated into the query, so it must be allowlisted
+        if key not in DIRECTORY_EMPLOYEE_FIELDS:
+            raise ValueError(f"Unsupported directory filter key: {key!r}")
+        query = (
+            "query($value: String!) { employees(filter: { contains: "
+            "{ %s: $value } }) { %s } }" % (key, fields)
+        )
+        variables = {"value": value.strip()}
+    else:
+        raise ValueError("key and value must be provided together.")
+
+    token = get_flask_env("DIRECTORY_API_TOKEN")
+    if not token:
+        raise DirectoryAPIError("DIRECTORY_API_TOKEN is not configured.")
+
+    try:
+        response = requests.post(
+            DIRECTORY_API_URL,
+            json={"query": query, "variables": variables},
+            headers={"Authorization": f"token {token}"},
+            timeout=5,
+        )
+        response.raise_for_status()
+        payload = response.json()
+    except (requests.RequestException, ValueError) as error:
+        raise DirectoryAPIError("Directory API request failed.") from error
+
+    if payload.get("errors"):
+        raise DirectoryAPIError(f"Directory API error: {payload['errors']}")
+
+    return (payload.get("data") or {}).get("employees") or []

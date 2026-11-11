@@ -19,6 +19,21 @@ Once the server has started, you can visit `http://0.0.0.0:8040/` in your browse
 
 After you close the server with `<ctrl>+c` you should run `docker-compose down` to stop the database.
 
+### Authentication
+
+Write endpoints (`POST`, `PUT`, `DELETE`) require Canonical SSO login. Users must be on the product's
+`owner_launchpad_team` or on the `products-api-admins` Launchpad team; creating products is admin-only.
+
+Put the secrets in the untracked `.env.local` file (never in `.env`):
+
+```bash
+SSO_CLIENT_ID=...
+SSO_CLIENT_SECRET=...
+FLASK_DIRECTORY_API_TOKEN=...
+```
+
+Set `FLASK_DISABLE_AUTH_FOR_TESTS=true` to bypass authentication locally (the test suite sets this automatically).
+
 ## Prerequisites
 
 - Docker
