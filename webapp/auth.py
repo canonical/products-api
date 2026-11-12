@@ -1,22 +1,26 @@
 import functools
 import time
-from urllib.parse import urlparse
 
 import flask
 import requests
 from authlib.integrations.base_client import OAuthError
 from authlib.integrations.flask_client import OAuth
 from canonicalwebteam.flask_base.env import get_flask_env
+from joserfc import jwt
+from joserfc.errors import JoseError
+from joserfc.jwk import OctKey
 
 from webapp.helpers import DirectoryAPIError, get_user_from_directory_by_key
 from webapp.models import Product
 
 LAUNCHPAD_API_URL = "https://api.launchpad.net/1.0"
 LAUNCHPAD_TIMEOUT = 10
-TEAMS_CACHE_TTL = 300
 AUTH_ADMIN_TEAM = "products-api-admins"
 
-_teams_cache: dict[str, tuple[float, list[str]]] = {}
+TOKEN_ALGORITHM = "HS256"
+TOKEN_ISSUER = "products-api"
+TOKEN_AUDIENCE = "products-api"
+TOKEN_EXPIRY_SECONDS = 3600
 
 
 def _auth_disabled() -> bool:
@@ -24,16 +28,41 @@ def _auth_disabled() -> bool:
     return value.strip().lower() in ("1", "true", "yes", "on")
 
 
-def _safe_next_url(url: str | None) -> str:
-    """Only allow same-site relative redirects, to avoid open redirects."""
-    if not url:
-        return "/"
-    parsed = urlparse(url)
-    if parsed.scheme or parsed.netloc or not url.startswith("/"):
-        return "/"
-    if url.startswith("//") or "\\" in url:
-        return "/"
-    return url
+def _signing_key() -> OctKey:
+    return OctKey.import_key(flask.current_app.config["SECRET_KEY"])
+
+
+def issue_access_token(launchpad_id: str, email: str) -> str:
+    now = int(time.time())
+    claims = {
+        "iss": TOKEN_ISSUER,
+        "aud": TOKEN_AUDIENCE,
+        "sub": launchpad_id,
+        "email": email,
+        "iat": now,
+        "exp": now + TOKEN_EXPIRY_SECONDS,
+    }
+    return jwt.encode(
+        {"alg": TOKEN_ALGORITHM},
+        claims,
+        _signing_key(),
+        algorithms=[TOKEN_ALGORITHM],
+    )
+
+
+def decode_access_token(token: str) -> dict:
+    """Verify signature, issuer, audience and expiry.
+
+    Raises JoseError if the token is invalid or expired.
+    """
+    decoded = jwt.decode(token, _signing_key(), algorithms=[TOKEN_ALGORITHM])
+    jwt.JWTClaimsRegistry(
+        iss={"essential": True, "value": TOKEN_ISSUER},
+        aud={"essential": True, "value": TOKEN_AUDIENCE},
+        sub={"essential": True},
+        exp={"essential": True},
+    ).validate(decoded.claims)
+    return decoded.claims
 
 
 def init_sso(app: flask.Flask):
@@ -52,22 +81,17 @@ def init_sso(app: flask.Flask):
 
     @app.route("/login")
     def login():
-        next_url = _safe_next_url(flask.request.args.get("next"))
-        if "openid" in flask.session:
-            return flask.redirect(next_url)
-
-        flask.session["login_next"] = next_url
         redirect_uri = flask.url_for("oauth_callback", _external=True)
         return oauth.canonical.authorize_redirect(redirect_uri)
 
     @app.route("/auth/callback")
     def oauth_callback():
         try:
-            token = oauth.canonical.authorize_access_token()
+            sso_token = oauth.canonical.authorize_access_token()
         except OAuthError:
             flask.abort(401, description="SSO authentication failed.")
 
-        userinfo = token.get("userinfo") or {}
+        userinfo = sso_token.get("userinfo") or {}
         email = userinfo.get("email")
         if not email:
             flask.abort(401, description="SSO did not return an email.")
@@ -89,27 +113,28 @@ def init_sso(app: flask.Flask):
         if user_data is None:
             flask.abort(404, description="User not found in directory.")
 
-        flask.session["openid"] = {
-            "email": email,
-            "fullname": userinfo.get("name"),
-            "launchpad_id": user_data.get("launchpadId"),
-        }
+        launchpad_id = user_data.get("launchpadId")
+        if not launchpad_id:
+            flask.abort(
+                403, description="No Launchpad account linked to this user."
+            )
 
-        return flask.redirect(
-            _safe_next_url(flask.session.pop("login_next", None))
+        response = flask.jsonify(
+            {
+                "access_token": issue_access_token(launchpad_id, email),
+                "token_type": "Bearer",
+                "expires_in": TOKEN_EXPIRY_SECONDS,
+            }
         )
+        response.headers["Cache-Control"] = "no-store"
+        return response
 
 
 def _get_launchpad_teams(launchpad_id: str) -> list[str]:
     """Return the names of all teams the Launchpad user participates in.
 
-    Results are cached per user for TEAMS_CACHE_TTL seconds.
     Raises requests.RequestException if Launchpad cannot be queried.
     """
-    cached = _teams_cache.get(launchpad_id)
-    if cached and cached[0] > time.monotonic():
-        return cached[1]
-
     teams = []
     url = f"{LAUNCHPAD_API_URL}/~{launchpad_id}/super_teams"
     params = {"ws.size": 300}
@@ -122,32 +147,42 @@ def _get_launchpad_teams(launchpad_id: str) -> list[str]:
         url = payload.get("next_collection_link")
         params = None
 
-    _teams_cache[launchpad_id] = (time.monotonic() + TEAMS_CACHE_TTL, teams)
     return teams
 
 
 def _error(message: str, status: int):
-    return flask.jsonify({"error": {"message": message}}), status
+    response = flask.jsonify({"error": {"message": message}})
+    if status == 401:
+        response.headers["WWW-Authenticate"] = (
+            f'Bearer realm="{TOKEN_AUDIENCE}"'
+        )
+    return response, status
 
 
-def _current_user_teams():
-    """Return (teams, None) for the logged-in user, or (None, error)."""
-    identity = flask.session.get("openid")
-    if not identity:
+def _authenticate():
+    """Return (claims, None) for a valid bearer token, or (None, error)."""
+    scheme, _, token = flask.request.headers.get(
+        "Authorization", ""
+    ).partition(" ")
+    if scheme.lower() != "bearer" or not token.strip():
         return None, _error("Authentication required", 401)
 
-    launchpad_id = identity.get("launchpad_id")
-    if not launchpad_id:
-        return None, _error("No Launchpad account linked to this user", 403)
-
     try:
-        return _get_launchpad_teams(launchpad_id), None
+        return decode_access_token(token.strip()), None
+    except JoseError:
+        return None, _error("Invalid or expired token", 401)
+
+
+def _get_teams(claims):
+    """Return (teams, None) for the token's user, or (None, error)."""
+    try:
+        return _get_launchpad_teams(claims["sub"]), None
     except requests.RequestException:
         return None, _error("Unable to verify team membership", 503)
 
 
 def product_owner_required(func):
-    """Require the logged-in user to be on the owning team for the
+    """Require a bearer token for a user on the owning team for the
     product identified by the `product_slug` URL argument, or on
     the admin team.
     """
@@ -157,14 +192,15 @@ def product_owner_required(func):
         if _auth_disabled():
             return func(product_slug, *args, **kwargs)
 
-        if not flask.session.get("openid"):
-            return _error("Authentication required", 401)
+        claims, error = _authenticate()
+        if error:
+            return error
 
         product = Product.query.filter_by(slug=product_slug).first()
         if not product:
             return _error("Product not found", 404)
 
-        teams, error = _current_user_teams()
+        teams, error = _get_teams(claims)
         if error:
             return error
 
@@ -183,14 +219,18 @@ def product_owner_required(func):
 
 
 def admin_required(func):
-    """Require the logged-in user to be on the admin team."""
+    """Require a bearer token for a user on the admin team."""
 
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         if _auth_disabled():
             return func(*args, **kwargs)
 
-        teams, error = _current_user_teams()
+        claims, error = _authenticate()
+        if error:
+            return error
+
+        teams, error = _get_teams(claims)
         if error:
             return error
 

@@ -21,8 +21,19 @@ After you close the server with `<ctrl>+c` you should run `docker-compose down` 
 
 ### Authentication
 
-Write endpoints (`POST`, `PUT`, `DELETE`) require Canonical SSO login. Users must be on the product's
+Write endpoints (`POST`, `PUT`, `DELETE`) require a bearer token. Users must be on the product's
 `owner_launchpad_team` or on the `products-api-admins` Launchpad team; creating products is admin-only.
+
+To get a token, open `http://localhost:8040/login` in a browser and sign in with Canonical SSO. The
+response contains an `access_token` that is valid for 1 hour. Send it on write requests:
+
+```bash
+curl -X PUT localhost:8040/products/<slug> \
+  -H "Authorization: Bearer <access_token>" \
+  -H "Content-Type: application/json" -d '{"name": "New name"}'
+```
+
+Tokens are signed with `SECRET_KEY`, so changing it invalidates all issued tokens.
 
 Put the secrets in the untracked `.env.local` file (never in `.env`):
 
