@@ -25,7 +25,9 @@ TOKEN_EXPIRY_SECONDS = 3600
 
 def _auth_disabled() -> bool:
     value = get_flask_env("DISABLE_AUTH_FOR_TESTS") or ""
-    return value.strip().lower() in ("1", "true", "yes", "on")
+    if value.strip().lower() not in ("1", "true", "yes", "on"):
+        return False
+    return flask.current_app.testing or flask.current_app.debug
 
 
 def _signing_key() -> OctKey:
