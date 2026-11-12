@@ -207,6 +207,7 @@ def get_user_from_directory_by_key(key=None, value=None) -> list[dict]:
             DIRECTORY_API_URL,
             json={"query": query, "variables": variables},
             headers={"Authorization": f"token {token}"},
+            timeout=10,
         )
         response.raise_for_status()
         payload = response.json()
