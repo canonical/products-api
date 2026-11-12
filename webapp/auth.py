@@ -20,7 +20,7 @@ AUTH_ADMIN_TEAM = "products-api-admins"
 TOKEN_ALGORITHM = "HS256"
 TOKEN_ISSUER = "products-api"
 TOKEN_AUDIENCE = "products-api"
-TOKEN_EXPIRY_SECONDS = 3600
+TOKEN_EXPIRY_SECONDS = int(get_flask_env("TOKEN_EXPIRY_SECONDS") or 3600)
 
 
 def _auth_disabled() -> bool:
