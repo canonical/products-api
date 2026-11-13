@@ -94,6 +94,7 @@ class ProductSchema(Schema):
 
     name = fields.String(required=True)
     slug = fields.String(dump_only=True)
+    owner_launchpad_team = fields.String(dump_only=True)
     deployments = fields.List(
         fields.Nested(lambda: DeploymentSchema()),
         required=True,
@@ -166,6 +167,9 @@ class CreateProductBodySchema(NormalizeNameMixin, Schema):
     """Schema for POST /products request body."""
 
     name = fields.String(required=True)
+    owner_launchpad_team = fields.String(
+        load_default=None, allow_none=True, validate=Length(min=1, max=100)
+    )
     deployments = fields.List(
         fields.Nested(CreateDeploymentBodySchema),
         required=True,
@@ -343,6 +347,9 @@ class UpdateProductBodySchema(NormalizeNameMixin, Schema):
     """Schema for PUT /products/<product_slug> request body."""
 
     name = fields.String(required=True)
+    owner_launchpad_team = fields.String(
+        required=False, allow_none=True, validate=Length(min=1, max=100)
+    )
 
 
 class ErrorSchema(Schema):
