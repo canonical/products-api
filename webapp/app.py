@@ -4,9 +4,12 @@ from flask import jsonify
 from flask_apispec import FlaskApiSpec
 from webapp.database import db, migrate
 import webapp.views as views
+from webapp.auth import init_sso
 
 app = FlaskBase(__name__, "products-api")
 app.json.sort_keys = False
+
+init_sso(app)
 
 # Database Configuration
 # When deployed via the 12-factor charm, paas-charm's PostgreSQL integration

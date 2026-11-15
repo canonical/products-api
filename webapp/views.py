@@ -3,6 +3,7 @@ from datetime import date
 from flask_apispec import use_kwargs
 from sqlalchemy.orm import joinedload
 
+from webapp.auth import admin_required, product_owner_required
 from webapp.database import db
 from webapp.helpers import (
     filter_deployment_versions,
@@ -130,8 +131,9 @@ def get_product_deployment_version(product_slug, deployment_slug, release):
     return VersionSchema().dump(version), 200
 
 
+@admin_required
 @use_kwargs(CreateProductBodySchema, location="json")
-def create_product(name, deployments):
+def create_product(name, deployments, owner_launchpad_team=None):
     slug = slugify(name)
 
     existing_product = Product.query.filter_by(slug=slug).one_or_none()
@@ -143,7 +145,9 @@ def create_product(name, deployments):
             }
         }, 409
 
-    product = Product(slug=slug, name=name)
+    product = Product(
+        slug=slug, name=name, owner_launchpad_team=owner_launchpad_team
+    )
     db.session.add(product)
 
     for dep_data in deployments:
@@ -169,6 +173,7 @@ def create_product(name, deployments):
     return ProductSchema().dump(product), 201
 
 
+@product_owner_required
 @use_kwargs(CreateProductDeploymentBodySchema, location="json")
 def create_product_deployment(product_slug, name, artifact_type):
     product = Product.query.filter_by(slug=product_slug).one_or_none()
@@ -219,6 +224,7 @@ def create_product_deployment(product_slug, name, artifact_type):
     return DeploymentSchema().dump(deployment), 201
 
 
+@product_owner_required
 @use_kwargs(CreateVersionBodySchema, location="json")
 def create_version(
     product_slug,
@@ -307,8 +313,9 @@ def create_version(
     return VersionSchema().dump(version), 201
 
 
+@product_owner_required
 @use_kwargs(UpdateProductBodySchema, location="json")
-def update_product(product_slug, name):
+def update_product(product_slug, name, **data):
     product = (
         Product.query.options(
             joinedload(Product.deployments).joinedload(Deployment.versions)
@@ -326,6 +333,8 @@ def update_product(product_slug, name):
         }, 404
 
     product.name = name
+    if "owner_launchpad_team" in data:
+        product.owner_launchpad_team = data["owner_launchpad_team"]
     try:
         db.session.commit()
     except Exception:
@@ -340,6 +349,7 @@ def update_product(product_slug, name):
     return ProductSchema().dump(product), 200
 
 
+@product_owner_required
 def delete_product(product_slug):
     product = Product.query.filter_by(slug=product_slug).one_or_none()
 
@@ -371,6 +381,7 @@ def delete_product(product_slug):
     return {"deleted": deleted}, 200
 
 
+@product_owner_required
 @use_kwargs(UpdateProductDeploymentBodySchema, location="json")
 def update_product_deployment(
     product_slug,
@@ -426,6 +437,7 @@ def update_product_deployment(
     return DeploymentSchema().dump(deployment), 200
 
 
+@product_owner_required
 def delete_product_deployment(product_slug, deployment_slug):
     product = (
         Product.query.filter_by(slug=product_slug)
@@ -489,6 +501,7 @@ def delete_product_deployment(product_slug, deployment_slug):
     return {"deleted": deleted}, 200
 
 
+@product_owner_required
 @use_kwargs(UpdateVersionBodySchema, location="json")
 def update_version(product_slug, deployment_slug, release, **data):
     product = Product.query.filter_by(slug=product_slug).one_or_none()
@@ -590,6 +603,7 @@ def update_version(product_slug, deployment_slug, release, **data):
     return VersionSchema().dump(version), 200
 
 
+@product_owner_required
 def delete_version(product_slug, deployment_slug, release):
     product = Product.query.filter_by(slug=product_slug).one_or_none()
     if product is None:

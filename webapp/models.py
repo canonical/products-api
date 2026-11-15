@@ -11,6 +11,7 @@ class Product(db.Model):
 
     slug = db.Column(db.String(100), primary_key=True)
     name = db.Column(db.String(255), nullable=False)
+    owner_launchpad_team = db.Column(db.String(100), nullable=True)
 
     deployments = db.relationship(
         "Deployment",
