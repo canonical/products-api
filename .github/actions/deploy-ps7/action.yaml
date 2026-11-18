@@ -125,6 +125,8 @@ runs:
           remove_juju_credentials || rc=1
           exit "$rc"
         }
+        trap 'exit 143' TERM
+        trap 'exit 130' INT
         trap on_exit EXIT
 
         echo "::add-mask::$VAULT_ROLE_ID"
