@@ -29,10 +29,6 @@ inputs:
     description: "How long to wait for the application to become active after deploy/refresh"
     required: false
     default: "20m"
-  settle-seconds:
-    description: "Seconds to wait after `juju refresh` before checking status, so the old revision's `active` status isn't mistaken for success"
-    required: false
-    default: "60"
   vault-role-id:
     description: "Vault AppRole role_id for retrieving JAAS OAuth credentials"
     required: true
@@ -95,7 +91,6 @@ runs:
         APP_NAME: ${{ inputs.app-name }}
         IMAGE_URL: ${{ inputs.image-url }}
         WAIT_TIMEOUT: ${{ inputs.wait-timeout }}
-        SETTLE_SECONDS: ${{ inputs.settle-seconds }}
       run: |
         set -euo pipefail
         JUJU_DATA_DIR="$(mktemp -d "${RUNNER_TEMP}/products-api-juju.XXXXXX")"
@@ -179,7 +174,15 @@ runs:
         CHARM_FILE="${CHARMS[0]}"
         if juju show-application "$APP_NAME" &>/dev/null; then
           ACTION=refresh
+          PREVIOUS_CHARM_REV=$(juju status "$APP_NAME" --format=json \
+            | jq -er --arg app "$APP_NAME" '.applications[$app]["charm-rev"]')
           juju refresh "$APP_NAME" --path="$CHARM_FILE" --resource flask-app-image="$IMAGE_URL"
+          EXPECTED_CHARM_REV=$(juju status "$APP_NAME" --format=json \
+            | jq -er --arg app "$APP_NAME" '.applications[$app]["charm-rev"]')
+          if [ "$EXPECTED_CHARM_REV" = "$PREVIOUS_CHARM_REV" ]; then
+            echo "::error::Juju did not select a new charm revision for $APP_NAME."
+            exit 1
+          fi
         else
           ACTION=deploy
           juju deploy "$CHARM_FILE" "$APP_NAME" --resource flask-app-image="$IMAGE_URL"
@@ -187,15 +190,12 @@ runs:
         echo "::endgroup::"
 
         echo "::group::Wait for $APP_NAME to become active"
-        # Right after `juju refresh` the application can still report `active`
-        # from the OLD revision, so wait-for could return before the upgrade
-        # has even started. Give the unit agents time to pick up the new
-        # charm/image (pods are recreated) before checking.
         if [ "$ACTION" = "refresh" ]; then
-          echo "Waiting ${SETTLE_SECONDS}s for the refresh to start rolling out..."
-          sleep "$SETTLE_SECONDS"
+          WAIT_QUERY="status=='active' && charm-rev==$EXPECTED_CHARM_REV"
+        else
+          WAIT_QUERY="status=='active'"
         fi
-        juju wait-for application "$APP_NAME" --timeout "$WAIT_TIMEOUT" --query="status=='active'" \
+        juju wait-for application "$APP_NAME" --timeout "$WAIT_TIMEOUT" --query="$WAIT_QUERY" \
           || { echo "::error::$APP_NAME did not become active within $WAIT_TIMEOUT"; juju status "$APP_NAME" || true; exit 1; }
         echo "::endgroup::"
 
