@@ -98,7 +98,10 @@ runs:
         SETTLE_SECONDS: ${{ inputs.settle-seconds }}
       run: |
         set -euo pipefail
-        JUJU_DATA_DIR="${JUJU_DATA:-$HOME/.local/share/juju}"
+        JUJU_DATA_DIR="$(mktemp -d "${RUNNER_TEMP}/products-api-juju.XXXXXX")"
+        echo "JUJU_DATA=$JUJU_DATA_DIR" >> "$GITHUB_ENV"
+        echo "PRODUCTS_API_JUJU_DATA=$JUJU_DATA_DIR" >> "$GITHUB_ENV"
+        export JUJU_DATA="$JUJU_DATA_DIR"
 
         revoke_vault_token() {
           if [ -n "${VAULT_TOKEN:-}" ]; then
@@ -154,8 +157,6 @@ runs:
 
         # --- Juju: log in, deploy, wait, then drop the credentials ---
         echo "::group::Log in to JAAS"
-        # Start clean in case a previous run on this runner was killed.
-        rm -rf "$JUJU_DATA_DIR"
         juju login "$JUJU_CONTROLLER_ADDRESS" -c "$JUJU_CONTROLLER_NAME"
 
         FULL_MODEL=$(juju models -c "$JUJU_CONTROLLER_NAME" --format json \
@@ -207,5 +208,8 @@ runs:
       if: always()
       shell: bash
       run: |
-        rm -rf "${JUJU_DATA:-$HOME/.local/share/juju}"
+        JUJU_DATA_DIR="${PRODUCTS_API_JUJU_DATA:-}"
+        case "$JUJU_DATA_DIR" in
+          "$RUNNER_TEMP"/products-api-juju.*) rm -rf -- "$JUJU_DATA_DIR" ;;
+        esac
         rm -f ./*.charm
