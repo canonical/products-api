@@ -40,8 +40,12 @@ inputs:
     description: "Vault AppRole secret_id for retrieving JAAS OAuth credentials"
     required: true
   vault-credentials-path:
-    description: "Vault KV path to the JAAS OAuth credentials, WITHOUT /data/ (e.g. secret/juju/credentials); `vault kv get` adds it for KV v2"
+    description: "Path of the JAAS OAuth credentials inside the KV mount, WITHOUT the mount name or /data/ (e.g. groups/<team>/service_account). The secret must have the keys juju_client_id and juju_client_secret."
     required: true
+  vault-mount:
+    description: "Vault KV v2 mount that holds the credentials"
+    required: false
+    default: "secret"
 
 runs:
   using: composite
@@ -83,6 +87,7 @@ runs:
         VAULT_ADDR: "https://vault.ps7.admin.canonical.com"
         VAULT_ROLE_ID: ${{ inputs.vault-role-id }}
         VAULT_SECRET_ID: ${{ inputs.vault-secret-id }}
+        VAULT_MOUNT: ${{ inputs.vault-mount }}
         VAULT_CREDENTIALS_PATH: ${{ inputs.vault-credentials-path }}
         JUJU_CONTROLLER_ADDRESS: ${{ inputs.controller-address }}
         JUJU_CONTROLLER_NAME: ${{ inputs.controller-name }}
@@ -134,10 +139,12 @@ runs:
         export VAULT_TOKEN
         unset VAULT_ROLE_ID VAULT_SECRET_ID
 
-        JUJU_CLIENT_ID=$(vault kv get -field=juju_client_id "$VAULT_CREDENTIALS_PATH")
+        CREDS_JSON=$(vault kv get -format=json -mount="$VAULT_MOUNT" "$VAULT_CREDENTIALS_PATH")
+        JUJU_CLIENT_ID=$(jq -er '.data.data.juju_client_id' <<<"$CREDS_JSON")
         echo "::add-mask::$JUJU_CLIENT_ID"
-        JUJU_CLIENT_SECRET=$(vault kv get -field=juju_client_secret "$VAULT_CREDENTIALS_PATH")
+        JUJU_CLIENT_SECRET=$(jq -er '.data.data.juju_client_secret' <<<"$CREDS_JSON")
         echo "::add-mask::$JUJU_CLIENT_SECRET"
+        unset CREDS_JSON
         export JUJU_CLIENT_ID JUJU_CLIENT_SECRET
 
         revoke_vault_token
