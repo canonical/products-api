@@ -1,0 +1,202 @@
+name: Deploy to PS7
+description: Deploy the products-api charm to a ProdStack 7 Juju model using JAAS OAuth credentials.
+
+inputs:
+  image-url:
+    description: "Full GHCR image URL to deploy as the flask-app-image resource"
+    required: true
+  app-name:
+    description: "Juju application name"
+    required: true
+  charm-artifact:
+    description: "Name of the uploaded charm artifact to deploy"
+    required: false
+    default: "products-api-charm"
+  controller-name:
+    description: "Juju controller name"
+    required: true
+  controller-address:
+    description: "Juju controller address for juju login"
+    required: true
+  model-name:
+    description: "Juju model short name"
+    required: true
+  juju-version:
+    description: "Juju snap channel"
+    required: false
+    default: "3/stable"
+  wait-timeout:
+    description: "How long to wait for the application to become active after deploy/refresh"
+    required: false
+    default: "20m"
+  settle-seconds:
+    description: "Seconds to wait after `juju refresh` before checking status, so the old revision's `active` status isn't mistaken for success"
+    required: false
+    default: "60"
+  vault-role-id:
+    description: "Vault AppRole role_id for retrieving JAAS OAuth credentials"
+    required: true
+  vault-secret-id:
+    description: "Vault AppRole secret_id for retrieving JAAS OAuth credentials"
+    required: true
+  vault-credentials-path:
+    description: "Vault KV path to the JAAS OAuth credentials, WITHOUT /data/ (e.g. secret/juju/credentials); `vault kv get` adds it for KV v2"
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Install Juju
+      shell: bash
+      env:
+        JUJU_VERSION: ${{ inputs.juju-version }}
+      run: |
+        set -euo pipefail
+        if snap list juju &>/dev/null; then
+          sudo snap refresh juju --channel="$JUJU_VERSION"
+        else
+          sudo snap install juju --channel="$JUJU_VERSION"
+        fi
+        juju version
+
+    - name: Install Vault CLI and jq
+      shell: bash
+      run: |
+        set -euo pipefail
+        command -v vault >/dev/null || sudo snap install vault
+        command -v jq >/dev/null || sudo snap install jq
+
+    - name: Download charm artifact
+      uses: actions/download-artifact@v8
+      with:
+        name: ${{ inputs.charm-artifact }}
+
+    # Fetching credentials, logging in and deploying happen in ONE step on
+    # purpose: secrets only live in this shell's memory. They are never written
+    # to step outputs or files, and each one is destroyed as soon as it is no
+    # longer needed:
+    #   - Vault token: revoked right after the two KV reads
+    #   - JAAS client ID/secret + Juju session: removed right after wait-for
+    - name: Fetch credentials and deploy
+      shell: bash
+      env:
+        VAULT_ADDR: "https://vault.ps7.admin.canonical.com"
+        VAULT_ROLE_ID: ${{ inputs.vault-role-id }}
+        VAULT_SECRET_ID: ${{ inputs.vault-secret-id }}
+        VAULT_CREDENTIALS_PATH: ${{ inputs.vault-credentials-path }}
+        JUJU_CONTROLLER_ADDRESS: ${{ inputs.controller-address }}
+        JUJU_CONTROLLER_NAME: ${{ inputs.controller-name }}
+        JUJU_MODEL_NAME: ${{ inputs.model-name }}
+        APP_NAME: ${{ inputs.app-name }}
+        IMAGE_URL: ${{ inputs.image-url }}
+        WAIT_TIMEOUT: ${{ inputs.wait-timeout }}
+        SETTLE_SECONDS: ${{ inputs.settle-seconds }}
+      run: |
+        set -euo pipefail
+        JUJU_DATA_DIR="${JUJU_DATA:-$HOME/.local/share/juju}"
+
+        revoke_vault_token() {
+          if [ -n "${VAULT_TOKEN:-}" ]; then
+            if vault token revoke -self >/dev/null 2>&1; then
+              echo "Vault token revoked."
+            else
+              echo "::error::Failed to revoke Vault token."
+              unset VAULT_TOKEN
+              return 1
+            fi
+            unset VAULT_TOKEN
+          fi
+        }
+
+        remove_juju_credentials() {
+          unset JUJU_CLIENT_ID JUJU_CLIENT_SECRET
+          rm -rf "$JUJU_DATA_DIR"
+        }
+
+        # Safety check: whatever happens in flow, nothing outlives this step.
+        on_exit() {
+          rc=$?
+          revoke_vault_token || rc=1
+          remove_juju_credentials || rc=1
+          exit "$rc"
+        }
+        trap on_exit EXIT
+
+        echo "::add-mask::$VAULT_ROLE_ID"
+        echo "::add-mask::$VAULT_SECRET_ID"
+
+        # --- Vault: fetch JAAS credentials, then revoke the token immediately ---
+        echo "::group::Fetch JAAS credentials from Vault"
+        VAULT_TOKEN=$(vault write -field=token auth/approle/login \
+            role_id="$VAULT_ROLE_ID" \
+            secret_id="$VAULT_SECRET_ID")
+        echo "::add-mask::$VAULT_TOKEN"
+        export VAULT_TOKEN
+        unset VAULT_ROLE_ID VAULT_SECRET_ID
+
+        JUJU_CLIENT_ID=$(vault kv get -field=juju_client_id "$VAULT_CREDENTIALS_PATH")
+        echo "::add-mask::$JUJU_CLIENT_ID"
+        JUJU_CLIENT_SECRET=$(vault kv get -field=juju_client_secret "$VAULT_CREDENTIALS_PATH")
+        echo "::add-mask::$JUJU_CLIENT_SECRET"
+        export JUJU_CLIENT_ID JUJU_CLIENT_SECRET
+
+        revoke_vault_token
+        echo "::endgroup::"
+
+        # --- Juju: log in, deploy, wait, then drop the credentials ---
+        echo "::group::Log in to JAAS"
+        # Start clean in case a previous run on this runner was killed.
+        rm -rf "$JUJU_DATA_DIR"
+        juju login "$JUJU_CONTROLLER_ADDRESS" -c "$JUJU_CONTROLLER_NAME"
+
+        FULL_MODEL=$(juju models -c "$JUJU_CONTROLLER_NAME" --format json \
+          | jq -r --arg model "$JUJU_MODEL_NAME" '.models[] | select(."short-name" == $model) | .name' \
+          | head -n1)
+        if [ -z "$FULL_MODEL" ]; then
+          echo "::error::Model '$JUJU_MODEL_NAME' not found on controller '$JUJU_CONTROLLER_NAME'."
+          exit 1
+        fi
+        juju switch "$JUJU_CONTROLLER_NAME:${FULL_MODEL}"
+        echo "::endgroup::"
+
+        echo "::group::Deploy charm"
+        shopt -s nullglob
+        CHARMS=(./*.charm)
+        if [ "${#CHARMS[@]}" -ne 1 ]; then
+          echo "::error::Expected exactly one .charm file, found ${#CHARMS[@]}: ${CHARMS[*]:-none}"
+          exit 1
+        fi
+        CHARM_FILE="${CHARMS[0]}"
+        if juju show-application "$APP_NAME" &>/dev/null; then
+          ACTION=refresh
+          juju refresh "$APP_NAME" --path="$CHARM_FILE" --resource flask-app-image="$IMAGE_URL"
+        else
+          ACTION=deploy
+          juju deploy "$CHARM_FILE" "$APP_NAME" --resource flask-app-image="$IMAGE_URL"
+        fi
+        echo "::endgroup::"
+
+        echo "::group::Wait for $APP_NAME to become active"
+        # Right after `juju refresh` the application can still report `active`
+        # from the OLD revision, so wait-for could return before the upgrade
+        # has even started. Give the unit agents time to pick up the new
+        # charm/image (pods are recreated) before checking.
+        if [ "$ACTION" = "refresh" ]; then
+          echo "Waiting ${SETTLE_SECONDS}s for the refresh to start rolling out..."
+          sleep "$SETTLE_SECONDS"
+        fi
+        juju wait-for application "$APP_NAME" --timeout "$WAIT_TIMEOUT" --query="status=='active'" \
+          || { echo "::error::$APP_NAME did not become active within $WAIT_TIMEOUT"; juju status "$APP_NAME" || true; exit 1; }
+        echo "::endgroup::"
+
+        remove_juju_credentials
+        echo "JAAS credentials and Juju session removed."
+
+    - name: Clean up runner
+      # Backstop in case the step above was cancelled before its own cleanup
+      # ran. Also removes the downloaded charm from the self-hosted runner.
+      if: always()
+      shell: bash
+      run: |
+        rm -rf "${JUJU_DATA:-$HOME/.local/share/juju}"
+        rm -f ./*.charm

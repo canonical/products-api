@@ -1,26 +1,28 @@
-# Packs the rock and the charm
-#
-# Only the packing jobs are included for now. The deploy jobs (publish the rock
-# to a registry and `juju deploy`/`refresh` the charm) will be added in a
-# follow-up PR once PS7 resources are provisioned by IS.
-#
-# NOTE: when deploy jobs are added here, gate them to the default branch
-# (e.g. `if: github.ref == 'refs/heads/main'`) so they never run from forks/PRs.
+name: Deploy
 
-name: Pack
-
+# - Push/merge to `main` -> pack, publish image, deploy to staging, then production
+# - Manual run from any other branch -> pack only (useful as a dry run)
 on:
   push:
     branches:
       - main
+      - ci-cd
   workflow_dispatch:
+
+# Least privilege by default; jobs that need more ask for it explicitly.
+permissions:
+  contents: read
+
+env:
+  CHARMCRAFT_ENABLE_EXPERIMENTAL_EXTENSIONS: true
+  ROCKCRAFT_ENABLE_EXPERIMENTAL_EXTENSIONS: true
 
 jobs:
   pack-rock:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up LXD
         uses: canonical/setup-lxd@main
@@ -32,17 +34,17 @@ jobs:
         run: rockcraft pack -v
 
       - name: Upload rock artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: products-api-rock
-          path: "*.rock"
+          path: ./*.rock
           if-no-files-found: error
 
   pack-charm:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up LXD
         uses: canonical/setup-lxd@main
@@ -55,8 +57,105 @@ jobs:
         run: charmcraft pack -v
 
       - name: Upload charm artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: products-api-charm
-          path: "charm/*.charm"
+          path: ./charm/*.charm
           if-no-files-found: error
+
+  publish-image:
+    # Only publish images for branches that actually deploy.
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/ci-cd'
+    runs-on: ubuntu-latest
+    needs: pack-rock
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image_url: ${{ steps.push.outputs.image_url }}
+    steps:
+      - name: Download rock artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: products-api-rock
+
+      - name: Push to GHCR
+        id: push
+        env:
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          ROCKS=(./*.rock)
+          if [ "${#ROCKS[@]}" -ne 1 ]; then
+            echo "::error::Expected exactly one .rock file, found ${#ROCKS[@]}: ${ROCKS[*]:-none}"
+            exit 1
+          fi
+
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}"
+          # Tag by commit for traceability...
+          TAG="sha-${GITHUB_SHA}"
+          skopeo --insecure-policy copy \
+            --dest-creds "${GHCR_USER}:${GHCR_TOKEN}" \
+            --digestfile digest.txt \
+            "oci-archive:${ROCKS[0]}" "docker://${IMAGE}:${TAG}"
+
+          # ...but deploy by digest, so a re-run that pushes a new build under
+          # the same tag can never be confused with the old one.
+          echo "Pushed ${IMAGE}:${TAG} ($(cat digest.txt))"
+          echo "image_url=${IMAGE}@$(cat digest.txt)" >> "$GITHUB_OUTPUT"
+
+  deploy-staging:
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/ci-cd'
+    runs-on:
+      [self-hosted, self-hosted-linux-amd64-jammy-private-endpoint-medium]
+    needs: [pack-charm, publish-image]
+    environment:
+      name: staging
+    concurrency:
+      group: deploy-staging
+      cancel-in-progress: false
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Deploy to staging
+        uses: ./.github/actions/deploy-ps7
+        with:
+          image-url: ${{ needs.publish-image.outputs.image_url }}
+          app-name: ${{ vars.CHARM_NAME }}
+          charm-artifact: products-api-charm
+          controller-name: ${{ vars.JUJU_CONTROLLER_NAME }}
+          controller-address: ${{ vars.JUJU_CONTROLLER_ADDRESS }}
+          model-name: ${{ vars.JUJU_MODEL_NAME }}
+          vault-role-id: ${{ secrets.VAULT_APPROLE_ROLE_ID }}
+          vault-secret-id: ${{ secrets.VAULT_APPROLE_SECRET_ID }}
+          vault-credentials-path: ${{ vars.VAULT_CREDENTIALS_PATH }}
+
+  deploy-production:
+    if: github.ref == 'refs/heads/main'
+    runs-on:
+      [self-hosted, self-hosted-linux-amd64-jammy-private-endpoint-medium]
+    needs: [deploy-staging, publish-image]
+    environment:
+      name: production
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Deploy to production
+        uses: ./.github/actions/deploy-ps7
+        with:
+          image-url: ${{ needs.publish-image.outputs.image_url }}
+          app-name: ${{ vars.CHARM_NAME }}
+          charm-artifact: products-api-charm
+          controller-name: ${{ vars.JUJU_CONTROLLER_NAME }}
+          controller-address: ${{ vars.JUJU_CONTROLLER_ADDRESS }}
+          model-name: ${{ vars.JUJU_MODEL_NAME }}
+          vault-role-id: ${{ secrets.VAULT_APPROLE_ROLE_ID }}
+          vault-secret-id: ${{ secrets.VAULT_APPROLE_SECRET_ID }}
+          vault-credentials-path: ${{ vars.VAULT_CREDENTIALS_PATH }}
