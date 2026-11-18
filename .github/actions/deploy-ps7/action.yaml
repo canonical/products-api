@@ -26,7 +26,7 @@ inputs:
     required: false
     default: "3/stable"
   wait-timeout:
-    description: "How long to wait for the application to become active after deploy/refresh"
+    description: "How long to wait for every unit to run the new charm revision and be active/idle (e.g. 900s, 20m, 1h)"
     required: false
     default: "20m"
   vault-role-id:
@@ -71,12 +71,15 @@ runs:
       with:
         name: ${{ inputs.charm-artifact }}
 
-    # Fetching credentials, logging in and deploying happen in ONE step on
+    # Fetching credentials and deploying run in ONE step (one shell) on
     # purpose: secrets only live in this shell's memory. They are never written
     # to step outputs or files, and each one is destroyed as soon as it is no
     # longer needed:
-    #   - Vault token: revoked right after the two KV reads
-    #   - JAAS client ID/secret + Juju session: removed right after wait-for
+    #   - Vault token: revoked by fetch-credentials.sh right after the KV read
+    #   - JAAS client ID/secret + Juju session: removed right after deploy.sh
+    # The logic lives in two scripts next to this file:
+    #   1. fetch-credentials.sh  Vault -> JAAS credentials (sourced)
+    #   2. deploy.sh             JAAS login, deploy/refresh, wait for rollout
     - name: Fetch credentials and deploy
       shell: bash
       env:
@@ -93,30 +96,20 @@ runs:
         WAIT_TIMEOUT: ${{ inputs.wait-timeout }}
       run: |
         set -euo pipefail
-        JUJU_DATA_DIR="$(mktemp -d "${RUNNER_TEMP}/products-api-juju.XXXXXX")"
-        echo "JUJU_DATA=$JUJU_DATA_DIR" >> "$GITHUB_ENV"
-        echo "PRODUCTS_API_JUJU_DATA=$JUJU_DATA_DIR" >> "$GITHUB_ENV"
-        export JUJU_DATA="$JUJU_DATA_DIR"
+        source "$GITHUB_ACTION_PATH/fetch-credentials.sh"
 
-        revoke_vault_token() {
-          if [ -n "${VAULT_TOKEN:-}" ]; then
-            if vault token revoke -self >/dev/null 2>&1; then
-              echo "Vault token revoked."
-            else
-              echo "::error::Failed to revoke Vault token."
-              unset VAULT_TOKEN
-              return 1
-            fi
-            unset VAULT_TOKEN
-          fi
-        }
+        # Isolated Juju client state for this run only; the runner's default
+        # ~/.local/share/juju is never touched.
+        JUJU_DATA="$(mktemp -d "${RUNNER_TEMP}/products-api-juju.XXXXXX")"
+        export JUJU_DATA
+        echo "PRODUCTS_API_JUJU_DATA=$JUJU_DATA" >> "$GITHUB_ENV"
 
         remove_juju_credentials() {
           unset JUJU_CLIENT_ID JUJU_CLIENT_SECRET
-          rm -rf "$JUJU_DATA_DIR"
+          rm -rf "$JUJU_DATA"
         }
 
-        # Safety check: whatever happens in flow, nothing outlives this step.
+        # Safety net: whatever happens below, no secret outlives this step.
         on_exit() {
           rc=$?
           revoke_vault_token || rc=1
@@ -127,77 +120,11 @@ runs:
         trap 'exit 130' INT
         trap on_exit EXIT
 
-        echo "::add-mask::$VAULT_ROLE_ID"
-        echo "::add-mask::$VAULT_SECRET_ID"
+        # Part 1: Vault -> JAAS credentials (Vault token revoked inside)
+        fetch_jaas_credentials
 
-        # --- Vault: fetch JAAS credentials, then revoke the token immediately ---
-        echo "::group::Fetch JAAS credentials from Vault"
-        VAULT_TOKEN=$(vault write -field=token auth/approle/login \
-            role_id="$VAULT_ROLE_ID" \
-            secret_id="$VAULT_SECRET_ID")
-        echo "::add-mask::$VAULT_TOKEN"
-        export VAULT_TOKEN
-        unset VAULT_ROLE_ID VAULT_SECRET_ID
-
-        CREDS_JSON=$(vault kv get -format=json -mount="$VAULT_MOUNT" "$VAULT_CREDENTIALS_PATH")
-        JUJU_CLIENT_ID=$(jq -er '.data.data.juju_client_id' <<<"$CREDS_JSON")
-        echo "::add-mask::$JUJU_CLIENT_ID"
-        JUJU_CLIENT_SECRET=$(jq -er '.data.data.juju_client_secret' <<<"$CREDS_JSON")
-        echo "::add-mask::$JUJU_CLIENT_SECRET"
-        unset CREDS_JSON
-        export JUJU_CLIENT_ID JUJU_CLIENT_SECRET
-
-        revoke_vault_token
-        echo "::endgroup::"
-
-        # --- Juju: log in, deploy, wait, then drop the credentials ---
-        echo "::group::Log in to JAAS"
-        juju login "$JUJU_CONTROLLER_ADDRESS" -c "$JUJU_CONTROLLER_NAME"
-
-        FULL_MODEL=$(juju models -c "$JUJU_CONTROLLER_NAME" --format json \
-          | jq -r --arg model "$JUJU_MODEL_NAME" '.models[] | select(."short-name" == $model) | .name' \
-          | head -n1)
-        if [ -z "$FULL_MODEL" ]; then
-          echo "::error::Model '$JUJU_MODEL_NAME' not found on controller '$JUJU_CONTROLLER_NAME'."
-          exit 1
-        fi
-        juju switch "$JUJU_CONTROLLER_NAME:${FULL_MODEL}"
-        echo "::endgroup::"
-
-        echo "::group::Deploy charm"
-        shopt -s nullglob
-        CHARMS=(./*.charm)
-        if [ "${#CHARMS[@]}" -ne 1 ]; then
-          echo "::error::Expected exactly one .charm file, found ${#CHARMS[@]}: ${CHARMS[*]:-none}"
-          exit 1
-        fi
-        CHARM_FILE="${CHARMS[0]}"
-        if juju show-application "$APP_NAME" &>/dev/null; then
-          ACTION=refresh
-          PREVIOUS_CHARM_REV=$(juju status "$APP_NAME" --format=json \
-            | jq -er --arg app "$APP_NAME" '.applications[$app]["charm-rev"]')
-          juju refresh "$APP_NAME" --path="$CHARM_FILE" --resource flask-app-image="$IMAGE_URL"
-          EXPECTED_CHARM_REV=$(juju status "$APP_NAME" --format=json \
-            | jq -er --arg app "$APP_NAME" '.applications[$app]["charm-rev"]')
-          if [ "$EXPECTED_CHARM_REV" = "$PREVIOUS_CHARM_REV" ]; then
-            echo "::error::Juju did not select a new charm revision for $APP_NAME."
-            exit 1
-          fi
-        else
-          ACTION=deploy
-          juju deploy "$CHARM_FILE" "$APP_NAME" --resource flask-app-image="$IMAGE_URL"
-        fi
-        echo "::endgroup::"
-
-        echo "::group::Wait for $APP_NAME to become active"
-        if [ "$ACTION" = "refresh" ]; then
-          WAIT_QUERY="status=='active' && charm-rev==$EXPECTED_CHARM_REV"
-        else
-          WAIT_QUERY="status=='active'"
-        fi
-        juju wait-for application "$APP_NAME" --timeout "$WAIT_TIMEOUT" --query="$WAIT_QUERY" \
-          || { echo "::error::$APP_NAME did not become active within $WAIT_TIMEOUT"; juju status "$APP_NAME" || true; exit 1; }
-        echo "::endgroup::"
+        # Part 2: log in, deploy/refresh, wait for every unit to roll out
+        bash "$GITHUB_ACTION_PATH/deploy.sh"
 
         remove_juju_credentials
         echo "JAAS credentials and Juju session removed."
