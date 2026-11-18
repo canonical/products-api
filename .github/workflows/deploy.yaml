@@ -131,7 +131,7 @@ jobs:
           model-name: ${{ vars.JUJU_MODEL_NAME }}
           vault-role-id: ${{ secrets.VAULT_APPROLE_ROLE_ID }}
           vault-secret-id: ${{ secrets.VAULT_APPROLE_SECRET_ID }}
-          vault-credentials-path: ${{ vars.VAULT_CREDENTIALS_PATH }}
+          vault-credentials-path: ${{ secrets.VAULT_CREDENTIALS_PATH }}
 
   deploy-production:
     if: github.ref == 'refs/heads/main'
@@ -158,4 +158,4 @@ jobs:
           model-name: ${{ vars.JUJU_MODEL_NAME }}
           vault-role-id: ${{ secrets.VAULT_APPROLE_ROLE_ID }}
           vault-secret-id: ${{ secrets.VAULT_APPROLE_SECRET_ID }}
-          vault-credentials-path: ${{ vars.VAULT_CREDENTIALS_PATH }}
+          vault-credentials-path: ${{ secrets.VAULT_CREDENTIALS_PATH }}
