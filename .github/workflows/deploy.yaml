@@ -12,6 +12,9 @@ on:
 # Least privilege by default; jobs that need more ask for it explicitly.
 permissions:
   contents: read
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
   CHARMCRAFT_ENABLE_EXPERIMENTAL_EXTENSIONS: true

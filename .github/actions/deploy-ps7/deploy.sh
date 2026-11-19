@@ -66,7 +66,13 @@ deploy_or_refresh() {
   fi
   local charm_file="${charms[0]}"
 
-  if juju show-application "$APP_NAME" &>/dev/null; then
+  local model_status
+  if ! model_status=$(juju status --format=json); then
+    echo "::error::Could not read the status of model '$JUJU_MODEL_NAME' (see the Juju error above); not deploying."
+    exit 1
+  fi
+
+  if jq -e --arg app "$APP_NAME" '(.applications // {}) | has($app)' <<<"$model_status" >/dev/null; then
     local previous_rev
     previous_rev=$(charm_rev)
     echo "Refreshing $APP_NAME (currently charm revision $previous_rev)"
@@ -85,11 +91,19 @@ deploy_or_refresh() {
   echo "::endgroup::"
 }
 
-# True when every unit runs EXPECTED_CHARM_REV and is active/idle.
+# True when the application has all of its expected units, and every unit
+# runs EXPECTED_CHARM_REV and is active/idle.
 #
 # The application's charm-rev is updated as soon as `juju refresh` returns,
 # before any unit has upgraded, so an application-level check can pass while
-# units still run the old charm/image. Per unit we require:
+# units still run the old charm/image.
+#
+# Unit count: `scale` is the number of units the application should have
+# (k8s models). Units that are still being created may not be listed yet, so
+# "all listed units are healthy" alone could pass with e.g. 1 of 3 units.
+# We require the number of listed units to equal `scale`.
+#
+# Per unit we require:
 #   - no `upgrading-from` (set while a unit's charm differs from the
 #     application's), i.e. the unit is on EXPECTED_CHARM_REV
 #   - workload active and agent idle
@@ -99,7 +113,8 @@ rollout_complete() {
   jq -e --argjson rev "$EXPECTED_CHARM_REV" '
       ."charm-rev" == $rev
       and ."application-status".current == "active"
-      and ((.units // {}) | length) > 0
+      and (.scale | type) == "number" and .scale > 0
+      and ((.units // {}) | length) == .scale
       and all((.units // {})[];
               (has("upgrading-from") | not)
               and ."workload-status".current == "active"
@@ -108,6 +123,7 @@ rollout_complete() {
 }
 
 print_unit_progress() {
+  jq -r '"  units: \((.units // {}) | length)/\(.scale // "unknown scale")"' <<<"$1" 2>/dev/null || true
   jq -r '(.units // {}) | to_entries[] | .key as $unit | .value
          | "  \($unit): workload=\(."workload-status".current) agent=\(."juju-status".current)"
            + (if has("upgrading-from") then " (upgrading from \(."upgrading-from"))" else "" end)' \
