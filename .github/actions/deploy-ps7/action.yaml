@@ -1,0 +1,142 @@
+name: Deploy to PS7
+description: Deploy the products-api charm to a ProdStack 7 Juju model using JAAS OAuth credentials.
+
+inputs:
+  image-url:
+    description: "Full GHCR image URL to deploy as the flask-app-image resource"
+    required: true
+  app-name:
+    description: "Juju application name"
+    required: true
+  charm-artifact:
+    description: "Name of the uploaded charm artifact to deploy"
+    required: false
+    default: "products-api-charm"
+  controller-name:
+    description: "Juju controller name"
+    required: true
+  controller-address:
+    description: "Juju controller address for juju login"
+    required: true
+  model-name:
+    description: "Juju model short name"
+    required: true
+  juju-version:
+    description: "Juju snap channel"
+    required: false
+    default: "3/stable"
+  wait-timeout:
+    description: "How long to wait for every unit to run the new charm revision and be active/idle (e.g. 900s, 20m, 1h)"
+    required: false
+    default: "20m"
+  vault-role-id:
+    description: "Vault AppRole role_id for retrieving JAAS OAuth credentials"
+    required: true
+  vault-secret-id:
+    description: "Vault AppRole secret_id for retrieving JAAS OAuth credentials"
+    required: true
+  vault-credentials-path:
+    description: "Path of the JAAS OAuth credentials inside the KV mount, WITHOUT the mount name or /data/ (e.g. groups/<team>/service_account). The secret must have the keys juju_client_id and juju_client_secret."
+    required: true
+  vault-mount:
+    description: "Vault KV v2 mount that holds the credentials"
+    required: false
+    default: "secret"
+
+runs:
+  using: composite
+  steps:
+    - name: Install Juju
+      shell: bash
+      env:
+        JUJU_VERSION: ${{ inputs.juju-version }}
+      run: |
+        set -euo pipefail
+        if snap list juju &>/dev/null; then
+          sudo snap refresh juju --channel="$JUJU_VERSION"
+        else
+          sudo snap install juju --channel="$JUJU_VERSION"
+        fi
+        juju version
+
+    - name: Install Vault CLI and jq
+      shell: bash
+      run: |
+        set -euo pipefail
+        command -v vault >/dev/null || sudo snap install vault
+        command -v jq >/dev/null || sudo snap install jq
+
+    - name: Download charm artifact
+      uses: actions/download-artifact@v8
+      with:
+        name: ${{ inputs.charm-artifact }}
+
+    # Fetching credentials and deploying run in ONE step (one shell) on
+    # purpose: secrets only live in this shell's memory. They are never written
+    # to step outputs or files, and each one is destroyed as soon as it is no
+    # longer needed:
+    #   - Vault token: revoked by fetch-credentials.sh right after the KV read
+    #   - JAAS client ID/secret + Juju session: removed right after deploy.sh
+    # The logic lives in two scripts next to this file:
+    #   1. fetch-credentials.sh  Vault -> JAAS credentials (sourced)
+    #   2. deploy.sh             JAAS login, deploy/refresh, wait for rollout
+    - name: Fetch credentials and deploy
+      shell: bash
+      env:
+        VAULT_ADDR: "https://vault.ps7.admin.canonical.com"
+        VAULT_ROLE_ID: ${{ inputs.vault-role-id }}
+        VAULT_SECRET_ID: ${{ inputs.vault-secret-id }}
+        VAULT_MOUNT: ${{ inputs.vault-mount }}
+        VAULT_CREDENTIALS_PATH: ${{ inputs.vault-credentials-path }}
+        JUJU_CONTROLLER_ADDRESS: ${{ inputs.controller-address }}
+        JUJU_CONTROLLER_NAME: ${{ inputs.controller-name }}
+        JUJU_MODEL_NAME: ${{ inputs.model-name }}
+        APP_NAME: ${{ inputs.app-name }}
+        IMAGE_URL: ${{ inputs.image-url }}
+        WAIT_TIMEOUT: ${{ inputs.wait-timeout }}
+      run: |
+        set -euo pipefail
+        source "$GITHUB_ACTION_PATH/fetch-credentials.sh"
+
+        # Isolated Juju client state for this run only; the runner's default
+        # ~/.local/share/juju is never touched.
+        JUJU_DATA="$(mktemp -d "${RUNNER_TEMP}/products-api-juju.XXXXXX")"
+        export JUJU_DATA
+        echo "PRODUCTS_API_JUJU_DATA=$JUJU_DATA" >> "$GITHUB_ENV"
+
+        remove_juju_credentials() {
+          unset JUJU_CLIENT_ID JUJU_CLIENT_SECRET
+          rm -rf "$JUJU_DATA"
+        }
+
+        # Safety net: whatever happens below, no secret outlives this step.
+        on_exit() {
+          rc=$?
+          revoke_vault_token || rc=1
+          remove_juju_credentials || rc=1
+          exit "$rc"
+        }
+        trap 'exit 143' TERM
+        trap 'exit 130' INT
+        trap on_exit EXIT
+
+        # Part 1: Vault -> JAAS credentials (Vault token revoked inside)
+        fetch_jaas_credentials
+
+        # Part 2: log in, deploy/refresh, wait for every unit to roll out
+        bash "$GITHUB_ACTION_PATH/deploy.sh"
+
+        remove_juju_credentials
+        echo "JAAS credentials and Juju session removed."
+
+    - name: Clean up runner
+      # Backstop in case the step above was cancelled before its own cleanup
+      # ran. Also removes the downloaded charm from the self-hosted runner.
+      if: always()
+      shell: bash
+      run: |
+        JUJU_DATA_DIR="${PRODUCTS_API_JUJU_DATA:-}"
+        case "$JUJU_DATA_DIR" in
+          "$RUNNER_TEMP"/products-api-juju.*) rm -rf -- "$JUJU_DATA_DIR" ;;
+        esac
+        rm -f ./*.charm
